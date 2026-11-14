@@ -1,4 +1,5 @@
 #include "EffectPanel.h"
+#include "Icons.h"
 
 namespace idg::ui
 {
@@ -34,6 +35,10 @@ struct EffectPanel::ScratchPad : public juce::Component, public juce::SettableTo
 
 EffectPanel::EffectPanel (EditorContext& c) : ctx (c), seq (c)
 {
+    spectrum.showGrid = false;
+    spectrum.fillAlpha = 0.12f;
+    spectrum.lineAlpha = 0.3f;
+    addAndMakeVisible (spectrum);
     addAndMakeVisible (scope);
     scope.setInterceptsMouseClicks (false, false);
     for (auto* b : { &onBtn, &holdBtn, &soloBtn, &parBtn, &rndBtn, &lockBtn, &initBtn, &copyBtn, &pasteBtn, &transBtn })
@@ -151,13 +156,14 @@ void EffectPanel::tick()
     updateHeader();
     seq.tick();
     scope.repaint();
+    spectrum.repaint();
 }
 
 void EffectPanel::resized()
 {
     auto r = getLocalBounds().reduced (10, 6);
     header = r.removeFromTop (56);
-    auto controls = header.withTrimmedLeft (270).reduced (0, 4);
+    auto controls = header.withTrimmedLeft (286).reduced (0, 4);
     auto row1 = controls.removeFromTop (22);
     controls.removeFromTop (4);
     auto row2 = controls.removeFromTop (22);
@@ -179,6 +185,7 @@ void EffectPanel::resized()
     r.removeFromBottom (6);
     body = r;
     scope.setBounds (body.reduced (2));
+    spectrum.setBounds (body.reduced (2));
 
     auto kr = body.reduced (4, 10);
     if (scratchPad != nullptr) { scratchPad->setBounds (kr.removeFromBottom (44)); kr.removeFromBottom (6); }
@@ -205,14 +212,27 @@ void EffectPanel::paint (juce::Graphics& g)
     const auto fc = familyColour (d.family);
     Theme::panelFrame (g, getLocalBounds().toFloat().reduced (2.0f), fc);
     auto h = header.toFloat();
-    g.setFont (Theme::mono (10.0f, true));
-    g.setColour (fc);
-    g.drawText ("[" + familyNames()[d.family] + "]", h.withHeight (14).translated (0, 2), juce::Justification::topLeft);
-    g.setFont (Theme::sans (24.0f, true));
-    Theme::glitchText (g, d.name.toUpperCase(), h.withTrimmedTop (16).withWidth (268), juce::Justification::topLeft, Theme::text, 1.6f);
-    g.setFont (Theme::sans (11.0f));
+    // logo de l'effet dans un cadre décalé
+    auto iconBox = h.withWidth (50.0f).withHeight (50.0f).translated (0, 3);
+    g.setColour (Theme::bg.withAlpha (0.8f));
+    g.fillRect (iconBox);
+    g.setColour (fc.withAlpha (0.6f));
+    g.drawRect (iconBox, 1.0f);
+    g.setColour (juce::Colour (0xffff1e3c).withAlpha (0.3f));
+    g.drawRect (iconBox.translated (-2.0f, 1.0f), 1.0f);
+    drawEffectIcon (g, fx, iconBox.reduced (8.0f), fc, 2.2f, true);
+    auto txt = h.withTrimmedLeft (58.0f).withWidth (220.0f);
+    Theme::tapeLabel (g, familyNames()[d.family], txt.getX(), txt.getY() + 2.0f, fc, 12.0f);
+    {
+        auto nameFont = Theme::sans (22.0f, true);
+        const float w = juce::GlyphArrangement::getStringWidth (nameFont, d.name.toUpperCase());
+        if (w > txt.getWidth()) nameFont = Theme::sans (22.0f * txt.getWidth() / w, true);
+        g.setFont (nameFont);
+        Theme::glitchText (g, d.name.toUpperCase(), txt.withTrimmedTop (16).withHeight (26), juce::Justification::centredLeft, Theme::text, 1.6f);
+    }
+    g.setFont (Theme::sans (10.5f));
     g.setColour (Theme::textDim);
-    g.drawText (d.help, h.withTrimmedTop (42).withWidth (268), juce::Justification::topLeft);
+    g.drawText (d.help, txt.withTrimmedTop (42), juce::Justification::topLeft);
     if (warning.isNotEmpty())
     {
         g.setFont (Theme::mono (10.0f, true));

@@ -1,5 +1,6 @@
 #pragma once
 #include "Knob.h"
+#include "Graphs.h"
 
 namespace idg::ui
 {
@@ -20,18 +21,20 @@ private:
     std::vector<std::pair<juce::String, juce::Rectangle<int>>> sections;
 };
 
-/** Onglet SORTIE : chaîne de sortie complète. */
+/** Onglet SORTIE : un module par boîte, avec retour graphique, + spectre détaillé. */
 class OutputPanel : public juce::Component
 {
 public:
     explicit OutputPanel (EditorContext&);
     void resized() override;
-    void paint (juce::Graphics&) override;
+    void tick();
+    SpectrumView spectrum;
 
 private:
     EditorContext& ctx;
     juce::OwnedArray<juce::Component> comps;
-    std::vector<std::pair<juce::String, juce::Rectangle<int>>> sections;
+    juce::OwnedArray<ModuleBox> boxes;
+    juce::OwnedArray<OutputGraph> graphs;
 };
 
 /** Onglet ENREG : rolling recorder, enregistrement manuel, glisser-déposer vers Ableton. */

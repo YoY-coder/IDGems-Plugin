@@ -191,7 +191,13 @@ void IDGemsEditor::timerCallback()
     for (int i = 0; i < n1; ++i) scopeTmp[(size_t) n++] = proc.scopeData[(size_t) (s1 + i)];
     for (int i = 0; i < n2; ++i) scopeTmp[(size_t) n++] = proc.scopeData[(size_t) (s2 + i)];
     proc.scopeFifo.finishedRead (n1 + n2);
-    if (n > 0) content->fxPanel.scope.push (scopeTmp.data(), n);
+    if (n > 0)
+    {
+        content->fxPanel.scope.push (scopeTmp.data(), n);
+        content->fxPanel.spectrum.setSampleRate (proc.getSampleRate());
+        content->fxPanel.spectrum.push (scopeTmp.data(), n);
+        content->output.spectrum.push (scopeTmp.data(), n);
+    }
 
     const float level = proc.outLevel.load();
     const float chaos = proc.getValue (G::chaos);
@@ -208,6 +214,7 @@ void IDGemsEditor::timerCallback()
         case 0: content->mod.tick(); break;
         case 1: content->perf.tick(); break;
         case 2: content->input.tick(); break;
+        case 3: content->output.tick(); break;
         default: break;
     }
 }

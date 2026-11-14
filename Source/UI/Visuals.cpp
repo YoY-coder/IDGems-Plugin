@@ -7,40 +7,50 @@ juce::Image makeBackgroundTexture (int w, int h, juce::Colour accent)
     juce::Image img (juce::Image::RGB, juce::jmax (1, w), juce::jmax (1, h), true);
     juce::Random r (1337);
     {
+        // grain + tramage ordonné (dithering 4x4) : rendu imprimé / photocopié
+        static const int bayer[4][4] { { 0, 8, 2, 10 }, { 12, 4, 14, 6 }, { 3, 11, 1, 9 }, { 15, 7, 13, 5 } };
         juce::Image::BitmapData bd (img, juce::Image::BitmapData::writeOnly);
         for (int y = 0; y < h; ++y)
             for (int x = 0; x < w; ++x)
             {
                 float n = r.nextFloat();
-                int v = 8 + (int) (n * n * 12.0f);
-                // trame de balayage
-                if (y % 3 == 0) v -= 2;
-                bd.setPixelColour (x, y, juce::Colour::fromRGB ((juce::uint8) v, (juce::uint8) v, (juce::uint8) (v + 2)));
+                int v = 6 + (int) (n * n * 9.0f) + (bayer[y & 3][x & 3] > 13 ? 3 : 0);
+                bd.setPixelColour (x, y, juce::Colour::fromRGB ((juce::uint8) v, (juce::uint8) v, (juce::uint8) (v + 1)));
             }
     }
     juce::Graphics g (img);
-    // rayures et fractures
-    for (int i = 0; i < 70; ++i)
+    // traînées de pixel sort verticales (dégradés triés qui coulent)
+    for (int i = 0; i < 38; ++i)
+    {
+        float x = r.nextFloat() * (float) w;
+        float ww = 2.0f + r.nextFloat() * 14.0f;
+        float y0 = r.nextFloat() * (float) h * 0.8f;
+        float len = 40.0f + r.nextFloat() * (float) h * 0.6f;
+        auto c = r.nextFloat() < 0.65f ? accent : (r.nextBool() ? Theme::blue : juce::Colour (0xffff1e3c));
+        juce::ColourGradient grad (c.withAlpha (0.10f + r.nextFloat() * 0.08f), x, y0, c.withAlpha (0.0f), x, y0 + len, false);
+        g.setGradientFill (grad);
+        g.fillRect (x, y0, ww, len);
+    }
+    // blocs de datamosh : rectangles décalés et lignes de balayage cassées
+    for (int i = 0; i < 26; ++i)
+    {
+        float bx = r.nextFloat() * (float) w, by = r.nextFloat() * (float) h;
+        float bw = 20.0f + r.nextFloat() * 160.0f, bh = 3.0f + r.nextFloat() * 26.0f;
+        g.setColour ((r.nextFloat() < 0.5f ? accent : Theme::blue).withAlpha (0.025f + r.nextFloat() * 0.04f));
+        g.fillRect (bx, by, bw, bh);
+        g.setColour (juce::Colours::white.withAlpha (0.03f));
+        g.drawHorizontalLine ((int) by, bx + bw * 0.2f, bx + bw);
+    }
+    // rayures fines
+    for (int i = 0; i < 50; ++i)
     {
         float x = r.nextFloat() * (float) w, y = r.nextFloat() * (float) h;
-        float len = 20.0f + r.nextFloat() * 220.0f;
-        g.setColour (juce::Colours::white.withAlpha (0.015f + r.nextFloat() * 0.03f));
-        g.drawLine (x, y, x + len, y + (r.nextFloat() - 0.5f) * 6.0f, 0.6f);
+        g.setColour (juce::Colours::white.withAlpha (0.012f + r.nextFloat() * 0.025f));
+        g.drawLine (x, y, x + 10.0f + r.nextFloat() * 160.0f, y + (r.nextFloat() - 0.5f) * 3.0f, 0.6f);
     }
-    for (int i = 0; i < 14; ++i)
-    {
-        float y = r.nextFloat() * (float) h;
-        float hh = 1.0f + r.nextFloat() * 5.0f;
-        g.setColour ((r.nextBool() ? accent : Theme::blue).withAlpha (0.03f + r.nextFloat() * 0.04f));
-        g.fillRect (r.nextFloat() * (float) w * 0.5f, y, (float) w * (0.2f + r.nextFloat() * 0.6f), hh);
-    }
-    // grille fine
-    g.setColour (juce::Colours::white.withAlpha (0.018f));
-    for (int x = 0; x < w; x += 32) g.drawVerticalLine (x, 0.0f, (float) h);
-    for (int y = 0; y < h; y += 32) g.drawHorizontalLine (y, 0.0f, (float) w);
     // vignettage
     juce::ColourGradient vg (juce::Colours::transparentBlack, (float) w * 0.5f, (float) h * 0.45f,
-                             juce::Colours::black.withAlpha (0.6f), 0.0f, 0.0f, true);
+                             juce::Colours::black.withAlpha (0.65f), 0.0f, 0.0f, true);
     g.setGradientFill (vg);
     g.fillRect (0, 0, w, h);
     return img;
@@ -76,18 +86,6 @@ void CorruptScope::paint (juce::Graphics& g)
 {
     auto r = getLocalBounds().toFloat();
     const float h = r.getHeight(), w = r.getWidth();
-    // spectre en barres fracturées
-    const float bw = w / 64.0f;
-    for (int b = 0; b < 64; ++b)
-    {
-        float v = bands[(size_t) b];
-        float bh = v * h * 0.8f;
-        float x = r.getX() + b * bw;
-        float shift = (rng.nextFloat() < intensity * 0.15f) ? (rng.nextFloat() - 0.5f) * 20.0f : 0.0f;
-        g.setColour (Theme::accent.withAlpha (alpha * (0.12f + v * 0.25f)));
-        g.fillRect (x + shift, r.getBottom() - bh, bw - 1.5f, bh);
-        if (v > 0.7f) { g.setColour (Theme::blue.withAlpha (alpha * 0.3f)); g.fillRect (x + shift + 1.5f, r.getBottom() - bh, bw - 2.5f, 2.0f); }
-    }
     // forme d'onde, tranches décalées, aberration chromatique
     const int n = (int) wave.size();
     auto drawWave = [&] (juce::Colour c, float dx)

@@ -122,6 +122,7 @@ public:
     void setAccent (juce::Colour c);
 
     std::function<void()> onStateRestored; // l'interface se rafraîchit
+    idg::OutputChain& getOutputChain() { return output; }
 
 private:
     void timerCallback() override;

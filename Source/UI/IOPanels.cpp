@@ -120,52 +120,73 @@ void InputPanel::paint (juce::Graphics& g)
 // ---------------------------------------------------------------------------
 OutputPanel::OutputPanel (EditorContext& c) : ctx (c)
 {
-    auto k = [&] (const juce::String& id, const juce::String& l, juce::Colour col = Theme::accent) { return own (*this, comps, new Knob (ctx, ctx.proc.indexOf (id), col, l)); };
-    k (G::inGain, "GAIN IN");                  // 0
-    k (G::hpFreq, "PASSE-HAUT", Theme::blue);   // 1
-    own (*this, comps, new ParamButton (ctx, G::monoOn, "GRAVE MONO", Theme::blue)); // 2
-    k (G::monoFreq, IDG_T ("FRÉQ MONO"), Theme::blue);  // 3
-    k (G::ottDepth, "PROFONDEUR");              // 4
-    k (G::ottTime, "TEMPS");                    // 5
-    k (G::ottUp, "UPWARD");                     // 6
-    k (G::ottDown, "DOWNWARD");                 // 7
-    k (G::ottGain, "GAIN OTT");                 // 8
-    k (G::clipDrive, "DRIVE", Theme::red);      // 9
-    k (G::ceiling, "PLAFOND", Theme::red);      // 10
-    k (G::limRelease, "RELEASE", Theme::red);   // 11
-    k (G::outGain, "GAIN OUT");                 // 12
-    k (G::globalMix, "DRY/WET");                // 13
+    const juce::String titles[] { "1 / GAIN + PASSE-HAUT", "2 / GRAVE MONO", "3 / OTT", "4 / SOFT CLIP", "5 / LIMITEUR", "SPECTRE", "SORTIE" };
+    const juce::Colour cols[] { Theme::blue, Theme::blue, Theme::accent, Theme::red, Theme::red, Theme::accent, Theme::accent };
+    for (int i = 0; i < 7; ++i) addAndMakeVisible (boxes.add (new ModuleBox (titles[i], cols[i])));
+    const OutputGraph::Kind kinds[] { OutputGraph::HighPass, OutputGraph::Mono, OutputGraph::Ott, OutputGraph::Clip, OutputGraph::Limiter };
+    for (auto k : kinds) addAndMakeVisible (graphs.add (new OutputGraph (c.proc, k)));
+    addAndMakeVisible (spectrum);
+
+    auto k = [&] (const juce::String& id, const juce::String& l, juce::Colour col) { return own (*this, comps, new Knob (ctx, ctx.proc.indexOf (id), col, l)); };
+    k (G::inGain, "GAIN IN", Theme::blue);      // 0
+    k (G::hpFreq, IDG_T ("FRÉQ"), Theme::blue);          // 1
+    own (*this, comps, new ParamButton (ctx, G::monoOn, "MONO", Theme::blue)); // 2
+    k (G::monoFreq, IDG_T ("FRÉQ"), Theme::blue);        // 3
+    k (G::ottDepth, "PROF.", Theme::accent);     // 4
+    k (G::ottTime, "TEMPS", Theme::accent);      // 5
+    k (G::ottUp, "UP", Theme::accent);           // 6
+    k (G::ottDown, "DOWN", Theme::accent);       // 7
+    k (G::ottGain, "GAIN", Theme::accent);       // 8
+    k (G::clipDrive, "DRIVE", Theme::red);       // 9
+    k (G::ceiling, "PLAFOND", Theme::red);       // 10
+    k (G::limRelease, "RELEASE", Theme::red);    // 11
+    k (G::outGain, "GAIN OUT", Theme::accent);   // 12
+    k (G::globalMix, "DRY/WET", Theme::accent);  // 13
+    for (auto* b : boxes) b->toBack();
+}
+
+void OutputPanel::tick()
+{
+    for (auto* g : graphs) g->tick();
+    spectrum.setSampleRate (ctx.proc.getSampleRate());
+    spectrum.repaint();
 }
 
 void OutputPanel::resized()
 {
-    sections.clear();
-    auto r = getLocalBounds().reduced (8, 6);
-    auto top = r.removeFromTop (r.getHeight() / 2);
-    const int kw = 78, kh = 92;
-    auto place = [&] (juce::Rectangle<int>& row, int idx) { comps[idx]->setBounds (row.removeFromLeft (kw).withHeight (kh)); };
-    auto sec = [&] (juce::Rectangle<int>& row, const juce::String& t, int w) { auto s = row.removeFromLeft (w); sections.push_back ({ t, s }); row.removeFromLeft (10); return s.withTrimmedTop (18); };
-
-    auto s1 = sec (top, "// 1. GAIN + HP", kw * 2);
-    place (s1, 0); place (s1, 1);
-    auto s2 = sec (top, "// 2. MONO", kw + 10);
-    comps[2]->setBounds (s2.removeFromTop (24).reduced (4, 0));
-    comps[3]->setBounds (s2.withHeight (kh - 10).withWidth (kw));
-    auto s3 = sec (top, "// 3. OTT MULTIBANDE", kw * 5);
-    for (int i = 4; i <= 8; ++i) place (s3, i);
-
-    r.removeFromTop (6);
-    auto s4 = sec (r, "// 4. CLIP", kw);
-    place (s4, 9);
-    auto s5 = sec (r, "// 5. LIMITEUR", kw * 2);
-    place (s5, 10); place (s5, 11);
-    auto s6 = sec (r, "// SORTIE", kw * 2);
-    place (s6, 12); place (s6, 13);
-}
-
-void OutputPanel::paint (juce::Graphics& g)
-{
-    for (auto& [title, r] : sections) Theme::sectionTitle (g, title, r.toFloat().withHeight (14), Theme::accent);
+    auto r = getLocalBounds().reduced (4, 2);
+    auto top = r.removeFromTop (196);
+    r.removeFromTop (4);
+    const int widths[] { 134, 104, 232, 112, 124 };
+    const int gap = (top.getWidth() - (134 + 104 + 232 + 112 + 124)) / 4;
+    const int kw = 46, kh = 62;
+    for (int i = 0; i < 5; ++i)
+    {
+        auto b = top.removeFromLeft (widths[i]);
+        top.removeFromLeft (gap);
+        boxes[i]->setBounds (b);
+        auto c = boxes[i]->content().translated (b.getX(), b.getY());
+        graphs[i]->setBounds (c.removeFromTop (c.getHeight() - kh - 4));
+        c.removeFromTop (4);
+        auto knobsRow = c;
+        auto place = [&] (int idx, int w) { comps[idx]->setBounds (knobsRow.removeFromLeft (w).withHeight (kh)); };
+        switch (i)
+        {
+            case 0: place (0, 60); place (1, 60); break;
+            case 1: comps[2]->setBounds (knobsRow.removeFromLeft (44).withSizeKeepingCentre (44, 22)); place (3, 50); break;
+            case 2: for (int j = 4; j <= 8; ++j) place (j, 44); break;
+            case 3: place (9, 100); break;
+            case 4: place (10, 56); place (11, 56); break;
+        }
+    }
+    auto spec = r.removeFromLeft (r.getWidth() - 136);
+    r.removeFromLeft (8);
+    boxes[5]->setBounds (spec);
+    spectrum.setBounds (boxes[5]->content().translated (spec.getX(), spec.getY()));
+    boxes[6]->setBounds (r);
+    auto oc = boxes[6]->content().translated (r.getX(), r.getY());
+    comps[12]->setBounds (oc.removeFromLeft (oc.getWidth() / 2).withHeight (juce::jmin (70, oc.getHeight())));
+    comps[13]->setBounds (oc.withHeight (juce::jmin (70, oc.getHeight())));
 }
 
 // ---------------------------------------------------------------------------

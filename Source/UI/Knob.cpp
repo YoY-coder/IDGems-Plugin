@@ -100,18 +100,27 @@ void Knob::paint (juce::Graphics& g)
     }
 
     const float ringR = radius - 3.0f;
-    // fond de l'arc
-    arc (ringR, startAngle, endAngle, Theme::line.withAlpha (alpha), 3.0f);
-
-    // plage de random personnalisée
+    // anneau segmenté (LED) : segments éteints, puis segments allumés jusqu'à la valeur
+    const int segs = big ? 30 : 22;
+    const float segSpan = (endAngle - startAngle) / (float) segs;
     const float rmin = proc.bank[paramIndex].rmin.load(), rmax = proc.bank[paramIndex].rmax.load();
-    if (std::abs (rmin - d.rmin) > 1.0e-3f || std::abs (rmax - d.rmax) > 1.0e-3f)
-        arc (radius - 0.5f, angleOf (rmin), angleOf (rmax), Theme::blue.withAlpha (0.9f * alpha), 1.5f);
-
-    // valeur
     const bool bipolar = d.type == PType::Float && d.min < 0.0f && d.max > 0.0f;
-    const float from = bipolar ? angleOf (prm->convertTo0to1 (0.0f)) : startAngle;
-    arc (ringR, from, angleOf (norm), colour.withAlpha (alpha), 3.0f);
+    const float zeroN = bipolar ? prm->convertTo0to1 (0.0f) : 0.0f;
+    for (int i = 0; i < segs; ++i)
+    {
+        const float t0 = (float) i / segs, t1 = (float) (i + 1) / segs, tc = (t0 + t1) * 0.5f;
+        const bool lit = bipolar ? (tc >= juce::jmin (zeroN, norm) && tc <= juce::jmax (zeroN, norm)) : tc <= norm;
+        const float a0 = startAngle + i * segSpan + segSpan * 0.14f, a1 = a0 + segSpan * 0.72f;
+        arc (ringR, a0, a1, lit ? colour.withAlpha (alpha) : Theme::line.withAlpha (alpha), lit ? 3.4f : 2.6f);
+    }
+    // halo du dernier segment allumé
+    {
+        const float a = angleOf (norm);
+        arc (ringR, a - 0.06f, a + 0.06f, Theme::text.withAlpha (0.9f * alpha), 3.4f);
+    }
+    // plage de random personnalisée (trait bleu extérieur)
+    if (std::abs (rmin - d.rmin) > 1.0e-3f || std::abs (rmax - d.rmax) > 1.0e-3f)
+        arc (radius - 0.2f, angleOf (rmin), angleOf (rmax), Theme::blue.withAlpha (0.9f * alpha), 1.2f);
 
     // modulations (anneau intérieur)
     float innerR = ringR - 5.0f;
@@ -127,17 +136,25 @@ void Knob::paint (juce::Graphics& g)
         if (innerR < radius * 0.45f) break;
     }
 
-    // corps
-    auto body = dial.reduced (size * 0.24f);
+    // corps octogonal avec encoche
+    auto body = dial.reduced (size * 0.25f);
+    juce::Path oct;
+    for (int i = 0; i < 8; ++i)
+    {
+        const float a = juce::MathConstants<float>::pi * (0.125f + i * 0.25f);
+        juce::Point<float> pt { centre.x + std::cos (a) * body.getWidth() * 0.52f, centre.y + std::sin (a) * body.getWidth() * 0.52f };
+        if (i == 0) oct.startNewSubPath (pt); else oct.lineTo (pt);
+    }
+    oct.closeSubPath();
     g.setColour (Theme::panelHi.withAlpha (alpha));
-    g.fillEllipse (body);
-    g.setColour (Theme::line.brighter (0.2f).withAlpha (alpha));
-    g.drawEllipse (body, 1.0f);
+    g.fillPath (oct);
+    g.setColour (Theme::line.brighter (0.35f).withAlpha (alpha));
+    g.strokePath (oct, juce::PathStrokeType (1.0f));
     {
         const float a = angleOf (norm) - juce::MathConstants<float>::halfPi;
-        const float r0 = body.getWidth() * 0.15f, r1 = body.getWidth() * 0.5f;
-        g.setColour (Theme::text.withAlpha (alpha));
-        g.drawLine (centre.x + std::cos (a) * r0, centre.y + std::sin (a) * r0, centre.x + std::cos (a) * r1, centre.y + std::sin (a) * r1, 2.0f);
+        const float r0 = body.getWidth() * 0.12f, r1 = body.getWidth() * 0.5f;
+        g.setColour (colour.withAlpha (alpha));
+        g.drawLine (centre.x + std::cos (a) * r0, centre.y + std::sin (a) * r0, centre.x + std::cos (a) * r1, centre.y + std::sin (a) * r1, 2.2f);
     }
     // point de valeur modulée
     if (std::abs (modNorm - norm) > 0.002f)

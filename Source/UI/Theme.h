@@ -39,32 +39,62 @@ struct Theme
         g.drawText (s, r, j, false);
     }
 
-    /** Cadre de panneau avec coins « fracturés ». */
+    /** Cadre « mal imprimé » : fond, contour principal + deux contours décalés (rouge / bleu), encoche déchirée. */
     static void panelFrame (juce::Graphics& g, juce::Rectangle<float> r, juce::Colour edge, float alpha = 1.0f)
     {
-        juce::Path p;
-        const float c = 7.0f;
-        p.startNewSubPath (r.getX() + c, r.getY());
-        p.lineTo (r.getRight(), r.getY());
-        p.lineTo (r.getRight(), r.getBottom() - c);
-        p.lineTo (r.getRight() - c, r.getBottom());
-        p.lineTo (r.getX(), r.getBottom());
-        p.lineTo (r.getX(), r.getY() + c);
-        p.closeSubPath();
-        g.setColour (panel.withAlpha (0.82f * alpha));
-        g.fillPath (p);
-        g.setColour (edge.withAlpha (0.35f * alpha));
-        g.strokePath (p, juce::PathStrokeType (1.0f));
-        // petites marques de coin
+        g.setColour (panel.withAlpha (0.78f * alpha));
+        g.fillRect (r);
+        // trame de demi-teintes discrète dans le coin bas-droit
+        g.setColour (edge.withAlpha (0.07f * alpha));
+        for (float y = r.getBottom() - 30.0f; y < r.getBottom() - 2.0f; y += 4.0f)
+            for (float x = r.getRight() - 60.0f + std::fmod (y, 8.0f) * 0.5f; x < r.getRight() - 2.0f; x += 4.0f)
+                g.fillRect (x, y, 1.5f, 1.5f);
+        g.setColour (juce::Colour (0xffff1e3c).withAlpha (0.28f * alpha));
+        g.drawRect (r.translated (-1.5f, 0.5f), 1.0f);
+        g.setColour (blue.withAlpha (0.28f * alpha));
+        g.drawRect (r.translated (1.5f, -0.5f), 1.0f);
+        g.setColour (edge.withAlpha (0.55f * alpha));
+        g.drawRect (r, 1.0f);
+        // encoche déchirée en haut à droite
+        juce::Path tear;
+        const float tx = r.getRight() - 46.0f, ty = r.getY();
+        tear.startNewSubPath (tx, ty);
+        tear.lineTo (tx + 8, ty + 5); tear.lineTo (tx + 15, ty + 1); tear.lineTo (tx + 24, ty + 6); tear.lineTo (tx + 31, ty);
+        g.setColour (bg);
+        g.strokePath (tear, juce::PathStrokeType (3.0f));
+        g.setColour (edge.withAlpha (0.8f * alpha));
+        g.strokePath (tear, juce::PathStrokeType (1.0f));
+        // repères d'impression
         g.setColour (edge.withAlpha (0.9f * alpha));
-        g.fillRect (r.getX() + c, r.getY() - 1.0f, 14.0f, 2.0f);
-        g.fillRect (r.getRight() - c - 14.0f, r.getBottom() - 1.0f, 14.0f, 2.0f);
+        g.fillRect (r.getX() - 1.0f, r.getBottom() - 10.0f, 2.0f, 10.0f);
+        g.fillRect (r.getX() - 1.0f, r.getBottom() - 1.0f, 10.0f, 2.0f);
+    }
+
+    /** Étiquette inversée façon ruban adhésif : bloc de couleur, texte noir. */
+    static float tapeLabel (juce::Graphics& g, const juce::String& s, float x, float y, juce::Colour c, float h = 13.0f)
+    {
+        auto f = mono (h * 0.78f, true);
+        g.setFont (f);
+        const float w = juce::GlyphArrangement::getStringWidth (f, s) + 10.0f;
+        juce::Path p;
+        p.startNewSubPath (x, y + 1.0f);
+        p.lineTo (x + w, y);
+        p.lineTo (x + w - 2.0f, y + h);
+        p.lineTo (x + 1.5f, y + h - 0.5f);
+        p.closeSubPath();
+        g.setColour (blue.withAlpha (0.6f));
+        g.fillPath (p, juce::AffineTransform::translation (2.0f, 1.5f));
+        g.setColour (c);
+        g.fillPath (p);
+        g.setColour (juce::Colours::black);
+        g.drawText (s, juce::Rectangle<float> (x + 5.0f, y, w - 8.0f, h), juce::Justification::centredLeft, false);
+        return w;
     }
 
     static void sectionTitle (juce::Graphics& g, const juce::String& s, juce::Rectangle<float> r, juce::Colour c)
     {
-        g.setFont (mono (11.0f, true));
-        glitchText (g, s, r, juce::Justification::centredLeft, c, 0.8f);
+        auto t = s.startsWith ("// ") ? s.substring (3) : s;
+        tapeLabel (g, t, r.getX(), r.getY(), c, juce::jmin (13.0f, r.getHeight()));
     }
 };
 } // namespace idg::ui

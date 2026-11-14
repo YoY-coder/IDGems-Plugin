@@ -1,4 +1,5 @@
 #include "RackView.h"
+#include "Icons.h"
 
 namespace idg::ui
 {
@@ -134,9 +135,11 @@ void RackView::paint (juce::Graphics& g)
             g.setColour (fc.withAlpha (0.25f));
             g.fillRect (r.withX (x + 4).withWidth ((r.getWidth() - 100.0f) * act[fx]).reduced (0, 3));
         }
+        drawEffectIcon (g, fx, juce::Rectangle<float> (x + 6, r.getY() + 3, r.getHeight() - 6, r.getHeight() - 6),
+                        (on ? fc : Theme::textDim).withAlpha (a), 1.2f, on);
         g.setFont (Theme::mono (11.0f, on));
         g.setColour ((on ? Theme::text : Theme::textDim).withAlpha (a));
-        g.drawText (d.shortName, juce::Rectangle<float> (x + 7, r.getY(), 90, r.getHeight()), juce::Justification::centredLeft);
+        g.drawText (d.shortName, juce::Rectangle<float> (x + 24, r.getY(), 80, r.getHeight()), juce::Justification::centredLeft);
 
         // zones : ON, S, P, mode, séquenceur
         auto z = r.withTrimmedLeft (r.getWidth() - 96);

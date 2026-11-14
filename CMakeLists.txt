@@ -64,7 +64,9 @@ set(IDGEMS_UI_SOURCES
     Source/UI/RightPanel.cpp
     Source/UI/TopBar.cpp
     Source/UI/PresetBrowser.cpp
-    Source/UI/Visuals.cpp)
+    Source/UI/Visuals.cpp
+    Source/UI/Icons.cpp
+    Source/UI/Graphs.cpp)
 
 target_sources(IDGems PRIVATE ${IDGEMS_DSP_SOURCES} ${IDGEMS_UI_SOURCES})
 target_include_directories(IDGems PRIVATE Source)

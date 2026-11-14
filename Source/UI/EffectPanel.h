@@ -2,6 +2,7 @@
 #include "Knob.h"
 #include "SeqEditor.h"
 #include "Visuals.h"
+#include "Graphs.h"
 
 namespace idg::ui
 {
@@ -16,6 +17,7 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void tick();
+    SpectrumView spectrum;
     CorruptScope scope;
 
 private:

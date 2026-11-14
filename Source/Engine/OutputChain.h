@@ -52,6 +52,12 @@ public:
         grMin = 1.0f;
     }
 
+    /** Télémétrie pour l'interface (crêtes accumulées, lues puis remises à zéro par l'UI). */
+    std::atomic<float> clipInPeak { 0.0f };          // niveau entrant dans le soft clip (après drive)
+    std::atomic<float> ottLevelDb[3] { -90.0f, -90.0f, -90.0f };
+    std::atomic<float> ottGainDb[3] { 0.0f, 0.0f, 0.0f };
+    static void raise (std::atomic<float>& a, float v) { if (v > a.load (std::memory_order_relaxed)) a.store (v, std::memory_order_relaxed); }
+
     /** Latence (samples) en mode normal. */
     int latency (bool zeroLatency) const { return zeroLatency ? 0 : lookahead - 1; }
 
@@ -72,6 +78,7 @@ public:
         const float attA[3] { (float) std::exp (-1.0 / (0.0047 * tScale * sr)), (float) std::exp (-1.0 / (0.0021 * tScale * sr)), (float) std::exp (-1.0 / (0.0011 * tScale * sr)) };
         const float relB[3] { (float) std::exp (-1.0 / (0.282 * tScale * sr)), (float) std::exp (-1.0 / (0.141 * tScale * sr)), (float) std::exp (-1.0 / (0.059 * tScale * sr)) };
 
+        float clipPk = 0.0f, bandLvl[3] { -90.0f, -90.0f, -90.0f }, bandGr[3] { 0.0f, 0.0f, 0.0f };
         for (int i = 0; i < n; ++i)
         {
             float v[2] { L[i], R[i] };
@@ -104,6 +111,8 @@ public:
                         if (db > -30.0f) gdb -= (db + 30.0f) * (1.0f - 1.0f / 8.0f) * s.ottDown;
                         if (db < -40.0f && db > -78.0f) gdb += juce::jmin (24.0f, (-40.0f - db) * (1.0f - 1.0f / 3.0f) * s.ottUp);
                         sum += b[j] * dsp::dbToGain (gdb + 9.0f);
+                        bandLvl[j] = juce::jmax (bandLvl[j], db);
+                        if (std::abs (gdb * s.ottDepth) > std::abs (bandGr[j])) bandGr[j] = gdb * s.ottDepth;
                     }
                     v[k] = v[k] + (sum * ottGain - v[k]) * s.ottDepth;
                 }
@@ -112,6 +121,7 @@ public:
             for (int k = 0; k < 2; ++k)
             {
                 float x = v[k] * outGain * drive;
+                clipPk = juce::jmax (clipPk, std::abs (x));
                 float a = std::abs (x);
                 if (a > 0.7f) x = std::copysign (0.7f + 0.3f * dsp::fastTanh ((a - 0.7f) / 0.3f), x);
                 v[k] = x;
@@ -148,6 +158,12 @@ public:
             if (! dsp::finite (outR)) outR = 0.0f;
             L[i] = juce::jlimit (-ceiling, ceiling, outL);
             R[i] = juce::jlimit (-ceiling, ceiling, outR);
+        }
+        raise (clipInPeak, clipPk);
+        for (int j = 0; j < 3; ++j)
+        {
+            raise (ottLevelDb[j], bandLvl[j]);
+            if (std::abs (bandGr[j]) > std::abs (ottGainDb[j].load (std::memory_order_relaxed))) ottGainDb[j].store (bandGr[j], std::memory_order_relaxed);
         }
         hp.sanitize(); mono.lp1.sanitize(); mono.lp2.sanitize(); mono.hp1.sanitize(); mono.hp2.sanitize();
     }
