@@ -1,0 +1,104 @@
+cmake_minimum_required(VERSION 3.22)
+
+project(IDGems VERSION 1.0.0 LANGUAGES C CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+# Sur Windows : runtime statique (le .vst3 ne dépend d'aucune DLL Visual C++)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+# ---------------------------------------------------------------------------
+# JUCE est téléchargé automatiquement à la première configuration.
+# ---------------------------------------------------------------------------
+include(FetchContent)
+FetchContent_Declare(JUCE
+    GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+    GIT_TAG        8.0.9
+    GIT_SHALLOW    TRUE)
+FetchContent_MakeAvailable(JUCE)
+
+option(IDGEMS_BUILD_TESTS "Compiler les tests de stabilité" ON)
+option(IDGEMS_COPY_AFTER_BUILD "Copier le VST3 dans le dossier système après compilation" OFF)
+
+juce_add_plugin(IDGems
+    COMPANY_NAME                "IDGems"
+    COMPANY_WEBSITE             ""
+    PLUGIN_MANUFACTURER_CODE    Idgm
+    PLUGIN_CODE                 Idg1
+    PRODUCT_NAME                "IDGems"
+    FORMATS                     VST3 Standalone
+    IS_SYNTH                    FALSE
+    NEEDS_MIDI_INPUT            TRUE
+    NEEDS_MIDI_OUTPUT           FALSE
+    IS_MIDI_EFFECT              FALSE
+    EDITOR_WANTS_KEYBOARD_FOCUS TRUE
+    VST3_CATEGORIES             Fx Distortion Delay
+    COPY_PLUGIN_AFTER_BUILD     ${IDGEMS_COPY_AFTER_BUILD})
+
+set(IDGEMS_DSP_SOURCES
+    Source/Core/ParamDefs.cpp
+    Source/Core/ParamBank.cpp
+    Source/Effects/Rack.cpp
+    Source/Effects/EffectFactory.cpp
+    Source/Modulation/ModEngine.cpp
+    Source/Engine/Sequencer.cpp
+    Source/Engine/Recorder.cpp
+    Source/State/RandomEngine.cpp
+    Source/State/StateHelpers.cpp
+    Source/State/PresetManager.cpp
+    Source/PluginProcessor.cpp)
+
+set(IDGEMS_UI_SOURCES
+    Source/PluginEditor.cpp
+    Source/UI/LookAndFeel.cpp
+    Source/UI/Knob.cpp
+    Source/UI/RackView.cpp
+    Source/UI/EffectPanel.cpp
+    Source/UI/SeqEditor.cpp
+    Source/UI/ModPanel.cpp
+    Source/UI/LfoEditor.cpp
+    Source/UI/PerfPanel.cpp
+    Source/UI/IOPanels.cpp
+    Source/UI/RightPanel.cpp
+    Source/UI/TopBar.cpp
+    Source/UI/PresetBrowser.cpp
+    Source/UI/Visuals.cpp)
+
+target_sources(IDGems PRIVATE ${IDGEMS_DSP_SOURCES} ${IDGEMS_UI_SOURCES})
+target_include_directories(IDGems PRIVATE Source)
+
+set(IDGEMS_DEFINITIONS
+    JUCE_WEB_BROWSER=0
+    JUCE_USE_CURL=0
+    JUCE_VST3_CAN_REPLACE_VST2=0
+    JUCE_DISPLAY_SPLASH_SCREEN=0)
+
+target_compile_definitions(IDGems PUBLIC ${IDGEMS_DEFINITIONS})
+
+set(IDGEMS_JUCE_MODULES
+    juce::juce_audio_utils
+    juce::juce_audio_processors
+    juce::juce_audio_formats
+    juce::juce_dsp
+    juce::juce_gui_extra)
+
+target_link_libraries(IDGems
+    PRIVATE ${IDGEMS_JUCE_MODULES}
+    PUBLIC juce::juce_recommended_config_flags
+           juce::juce_recommended_lto_flags
+           juce::juce_recommended_warning_flags)
+
+# ---------------------------------------------------------------------------
+# Tests de stabilité (exécutable console) : NaN, clics, plafond du limiteur...
+# ---------------------------------------------------------------------------
+if(IDGEMS_BUILD_TESTS)
+    juce_add_console_app(IDGemsTests PRODUCT_NAME "IDGemsTests")
+    target_sources(IDGemsTests PRIVATE Tests/StabilityTests.cpp ${IDGEMS_DSP_SOURCES} ${IDGEMS_UI_SOURCES})
+    target_include_directories(IDGemsTests PRIVATE Source)
+    target_compile_definitions(IDGemsTests PRIVATE ${IDGEMS_DEFINITIONS} IDGEMS_TESTS=1 JUCE_STANDALONE_APPLICATION=0)
+    target_link_libraries(IDGemsTests
+        PRIVATE ${IDGEMS_JUCE_MODULES}
+        PUBLIC juce::juce_recommended_config_flags)
+endif()
