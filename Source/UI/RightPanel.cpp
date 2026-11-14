@@ -23,8 +23,8 @@ struct RightPanel::BigRandomButton : public juce::Component, public juce::Settab
             g.setColour ((i % 2 ? Theme::blue : Theme::accent).withAlpha (0.25f + flashAmt * 0.4f));
             g.fillRect (r.getX() + rng.nextFloat() * r.getWidth() * 0.5f, y, r.getWidth() * rng.nextFloat() * 0.6f, 1.5f);
         }
-        g.setFont (Theme::sans (22.0f, true));
-        Theme::glitchText (g, pending ? "EN ATTENTE..." : "RANDOM", r, juce::Justification::centred, Theme::text, 2.0f + flashAmt * 4.0f);
+        Theme::cutText (g, pending ? "EN ATTENTE" : "RANDOM", r, pending ? 13.0f : 18.0f, juce::Colour (0xffeeeae6),
+                        juce::Justification::centred, 0.35f + flashAmt * 0.6f, true);
     }
     void mouseDown (const juce::MouseEvent&) override { flashAmt = 1.0f; if (onClick) onClick(); repaint(); }
     void tick (bool isPending)

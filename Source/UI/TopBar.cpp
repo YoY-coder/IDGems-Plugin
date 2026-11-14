@@ -88,9 +88,9 @@ void TopBar::paint (juce::Graphics& g)
     g.fillRect (r.getX(), r.getBottom() - 1.0f, r.getWidth(), 1.0f);
     // logo
     auto logo = juce::Rectangle<float> (12, 4, 180, r.getHeight() - 8);
-    g.setFont (Theme::sans (26.0f, true));
-    const float jitter = rng.nextFloat() < 0.1f ? (rng.nextFloat() - 0.5f) * 6.0f : 0.0f;
-    Theme::glitchText (g, "IDGEMS", logo.translated (jitter, 0), juce::Justification::centredLeft, Theme::text, 2.2f);
+    const float jitter = rng.nextFloat() < 0.06f ? (rng.nextFloat() - 0.5f) * 4.0f : 0.0f;
+    Theme::cutText (g, "IDGEMS", logo.withHeight (30.0f).translated (jitter, -2.0f), 23.0f, juce::Colour (0xffeeeae6),
+                    juce::Justification::centredLeft, 0.55f, true);
     if (rng.nextFloat() < 0.2f)
     {
         g.setColour (Theme::accent.withAlpha (0.6f));
@@ -98,7 +98,7 @@ void TopBar::paint (juce::Graphics& g)
     }
     g.setFont (Theme::mono (9.0f, true));
     g.setColour (Theme::accent);
-    g.drawText ("GLITCH MACHINE", logo.withTrimmedLeft (110).withTrimmedTop (18), juce::Justification::centredLeft);
+    g.drawText ("GLITCH MACHINE", logo.withTrimmedTop (26).withHeight (10), juce::Justification::centredLeft);
     if (messageTime > 0)
     {
         g.setFont (Theme::mono (11.0f, true));

@@ -130,7 +130,7 @@ void ModuleBox::paint (juce::Graphics& g)
 {
     auto r = getLocalBounds().toFloat().reduced (2.0f);
     Theme::panelFrame (g, r, colour, 1.0f);
-    Theme::tapeLabel (g, title, r.getX() + 6.0f, r.getY() + 3.0f, colour);
+    Theme::sectionTitle (g, title, juce::Rectangle<float> (r.getX() + 6.0f, r.getY() + 3.0f, r.getWidth() - 12.0f, 14.0f), colour);
 }
 
 // ---------------------------------------------------------------------------

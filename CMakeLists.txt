@@ -65,8 +65,13 @@ set(IDGEMS_UI_SOURCES
     Source/UI/TopBar.cpp
     Source/UI/PresetBrowser.cpp
     Source/UI/Visuals.cpp
+    Source/UI/Theme.cpp
     Source/UI/Icons.cpp
     Source/UI/Graphs.cpp)
+
+# Police des titres (Michroma, licence SIL OFL : voir Resources/Fonts/OFL.txt)
+juce_add_binary_data(IDGemsData SOURCES Resources/Fonts/Michroma-Regular.ttf)
+set_target_properties(IDGemsData PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 target_sources(IDGems PRIVATE ${IDGEMS_DSP_SOURCES} ${IDGEMS_UI_SOURCES})
 target_include_directories(IDGems PRIVATE Source)
@@ -93,7 +98,7 @@ set(IDGEMS_JUCE_MODULES
     juce::juce_gui_extra)
 
 target_link_libraries(IDGems
-    PRIVATE ${IDGEMS_JUCE_MODULES}
+    PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
     PUBLIC juce::juce_recommended_config_flags
            juce::juce_recommended_lto_flags
            juce::juce_recommended_warning_flags)
@@ -110,6 +115,6 @@ if(IDGEMS_BUILD_TESTS)
         target_compile_options(IDGemsTests PRIVATE /utf-8)
     endif()
     target_link_libraries(IDGemsTests
-        PRIVATE ${IDGEMS_JUCE_MODULES}
+        PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
         PUBLIC juce::juce_recommended_config_flags)
 endif()

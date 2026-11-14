@@ -42,16 +42,16 @@ struct Theme
     /** Cadre « mal imprimé » : fond, contour principal + deux contours décalés (rouge / bleu), encoche déchirée. */
     static void panelFrame (juce::Graphics& g, juce::Rectangle<float> r, juce::Colour edge, float alpha = 1.0f)
     {
-        g.setColour (panel.withAlpha (0.78f * alpha));
+        g.setColour (panel.withAlpha (0.74f * alpha));
         g.fillRect (r);
         // trame de demi-teintes discrète dans le coin bas-droit
         g.setColour (edge.withAlpha (0.07f * alpha));
         for (float y = r.getBottom() - 30.0f; y < r.getBottom() - 2.0f; y += 4.0f)
             for (float x = r.getRight() - 60.0f + std::fmod (y, 8.0f) * 0.5f; x < r.getRight() - 2.0f; x += 4.0f)
                 g.fillRect (x, y, 1.5f, 1.5f);
-        g.setColour (juce::Colour (0xffff1e3c).withAlpha (0.28f * alpha));
+        g.setColour (juce::Colour (0xffff1e3c).withAlpha (0.14f * alpha));
         g.drawRect (r.translated (-1.5f, 0.5f), 1.0f);
-        g.setColour (blue.withAlpha (0.28f * alpha));
+        g.setColour (blue.withAlpha (0.14f * alpha));
         g.drawRect (r.translated (1.5f, -0.5f), 1.0f);
         g.setColour (edge.withAlpha (0.55f * alpha));
         g.drawRect (r, 1.0f);
@@ -62,7 +62,9 @@ struct Theme
         tear.lineTo (tx + 8, ty + 5); tear.lineTo (tx + 15, ty + 1); tear.lineTo (tx + 24, ty + 6); tear.lineTo (tx + 31, ty);
         g.setColour (bg);
         g.strokePath (tear, juce::PathStrokeType (3.0f));
-        g.setColour (edge.withAlpha (0.8f * alpha));
+        g.setColour (accent.withAlpha (0.25f * alpha));
+        g.strokePath (tear, juce::PathStrokeType (5.0f));
+        g.setColour (accent.brighter (0.5f).withAlpha (0.95f * alpha));
         g.strokePath (tear, juce::PathStrokeType (1.0f));
         // repères d'impression
         g.setColour (edge.withAlpha (0.9f * alpha));
@@ -91,10 +93,25 @@ struct Theme
         return w;
     }
 
+    /** Police des titres (large, futuriste). */
+    static juce::Font title (float h);
+
+    /** Texte « tranché » façon logo Altered Brother : lettres coupées en biais, moitiés décalées,
+        rendu métal et halo orange optionnel. */
+    static void cutText (juce::Graphics& g, const juce::String& text, juce::Rectangle<float> area, float height,
+                         juce::Colour colour, juce::Justification just = juce::Justification::centredLeft,
+                         float glow = 0.0f, bool metal = true);
+
     static void sectionTitle (juce::Graphics& g, const juce::String& s, juce::Rectangle<float> r, juce::Colour c)
     {
         auto t = s.startsWith ("// ") ? s.substring (3) : s;
-        tapeLabel (g, t, r.getX(), r.getY(), c, juce::jmin (13.0f, r.getHeight()));
+        // petit trait incandescent devant le titre
+        g.setColour (c);
+        g.fillRect (r.getX(), r.getY() + 3.0f, 2.0f, 8.0f);
+        g.setColour (c.withAlpha (0.35f));
+        g.fillRect (r.getX() - 1.0f, r.getY() + 2.0f, 4.0f, 10.0f);
+        cutText (g, t.toUpperCase(), r.withTrimmedLeft (7.0f).withHeight (14.0f), 10.5f, c.interpolatedWith (text, 0.45f),
+                 juce::Justification::centredLeft, 0.0f, true);
     }
 };
 } // namespace idg::ui

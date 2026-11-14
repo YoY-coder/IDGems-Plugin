@@ -25,7 +25,7 @@ private:
     std::array<float, 1024> fftData {};
 };
 
-/** Calque de glitch visuel qui réagit au son (sans intercepter la souris). */
+/** Calque de braises / particules qui réagit au son (sans intercepter la souris). */
 class GlitchOverlay : public juce::Component
 {
 public:
@@ -34,7 +34,9 @@ public:
     void paint (juce::Graphics&) override;
 
 private:
-    float level = 0.0f;
+    struct Spark { float x = 0, y = 0, vx = 0, vy = 0, size = 1, life = 0, decay = 0.01f; bool hot = true; };
+    std::array<Spark, 140> sparks;
+    float level = 0.0f, flash = 0.0f;
     juce::Random rng;
     int frame = 0;
 };

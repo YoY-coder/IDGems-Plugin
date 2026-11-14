@@ -223,13 +223,8 @@ void EffectPanel::paint (juce::Graphics& g)
     drawEffectIcon (g, fx, iconBox.reduced (8.0f), fc, 2.2f, true);
     auto txt = h.withTrimmedLeft (58.0f).withWidth (220.0f);
     Theme::tapeLabel (g, familyNames()[d.family], txt.getX(), txt.getY() + 2.0f, fc, 12.0f);
-    {
-        auto nameFont = Theme::sans (22.0f, true);
-        const float w = juce::GlyphArrangement::getStringWidth (nameFont, d.name.toUpperCase());
-        if (w > txt.getWidth()) nameFont = Theme::sans (22.0f * txt.getWidth() / w, true);
-        g.setFont (nameFont);
-        Theme::glitchText (g, d.name.toUpperCase(), txt.withTrimmedTop (16).withHeight (26), juce::Justification::centredLeft, Theme::text, 1.6f);
-    }
+    Theme::cutText (g, d.name.toUpperCase(), txt.withTrimmedTop (16).withHeight (26), 16.0f, juce::Colour (0xffeeeae6),
+                    juce::Justification::centredLeft, 0.3f, true);
     g.setFont (Theme::sans (10.5f));
     g.setColour (Theme::textDim);
     g.drawText (d.help, txt.withTrimmedTop (42), juce::Justification::topLeft);
