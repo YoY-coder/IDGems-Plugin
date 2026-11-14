@@ -12,6 +12,7 @@ public:
     explicit EffectPanel (EditorContext&);
     ~EffectPanel() override;
     void setEffect (int fx);
+    void refresh() { updateHeader(); seq.refresh(); repaint(); }
     void paint (juce::Graphics&) override;
     void resized() override;
     void tick();

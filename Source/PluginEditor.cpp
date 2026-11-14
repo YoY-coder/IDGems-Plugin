@@ -174,7 +174,7 @@ void IDGemsEditor::refreshAll()
 {
     if (! content) return;
     content->rack.repaint();
-    content->fxPanel.setEffect (ctx.selectedFx);
+    content->fxPanel.refresh();
     content->perf.refresh();
     content->mod.refreshConnections();
     content->mod.repaint();
