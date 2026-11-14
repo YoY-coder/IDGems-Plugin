@@ -1,0 +1,45 @@
+name: Compilation Windows (VST3)
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Configurer (CMake + JUCE)
+        run: cmake -B build -A x64 -DIDGEMS_BUILD_TESTS=ON
+
+      - name: Compiler le VST3 et les tests
+        run: cmake --build build --config Release --target IDGems_VST3 IDGemsTests --parallel
+
+      - name: Tests de stabilité (NaN, plafond, feedback, latence, clics, CPU)
+        run: build\IDGemsTests_artefacts\Release\IDGemsTests.exe
+
+      - name: Validation pluginval (norme des hôtes VST3)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pluginval
+          $p = Start-Process -FilePath pluginval\pluginval.exe -ArgumentList '--strictness-level 5 --validate-in-process --timeout-ms 600000 --validate "build\IDGems_artefacts\Release\VST3\IDGems.vst3"' -NoNewWindow -Wait -PassThru
+          exit $p.ExitCode
+
+      - name: Préparer le paquet
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item -Recurse "build\IDGems_artefacts\Release\VST3\IDGems.vst3" dist\
+          Copy-Item docs\INSTALLATION.md dist\ -ErrorAction SilentlyContinue
+
+      - name: Publier le VST3 (à télécharger)
+        uses: actions/upload-artifact@v4
+        with:
+          name: IDGems-VST3-Windows
+          path: dist
+          retention-days: 30
