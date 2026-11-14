@@ -43,5 +43,7 @@ private:
     int lastModCount = -1;
     int altSlot = -1;
     float altStartDepth = 0.0f;
+    float flicker = 0.0f;
+    juce::Random rng;
 };
 } // namespace idg::ui

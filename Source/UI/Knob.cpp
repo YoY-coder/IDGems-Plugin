@@ -54,6 +54,14 @@ juce::String Knob::getTooltip()
 
 void Knob::tick()
 {
+    // scintillement du néon : plus la valeur est haute, plus il vacille souvent
+    const float n = (float) ctx.proc.param (paramIndex)->getValue();
+    if (n > 0.15f && rng.nextFloat() < 0.15f + 0.6f * n * n)
+    {
+        flicker = rng.nextFloat() < 0.2f * n ? 1.0f : rng.nextFloat() * 0.35f;
+        repaint();
+    }
+    else if (flicker > 0.0f) { flicker = 0.0f; repaint(); }
     const float d = ctx.proc.bank[paramIndex].display01.load (std::memory_order_relaxed);
     int count = 0;
     for (const auto& s : ctx.proc.modShared.slots)
@@ -100,23 +108,36 @@ void Knob::paint (juce::Graphics& g)
     }
 
     const float ringR = radius - 3.0f;
-    // anneau segmenté (LED) : segments éteints, puis segments allumés jusqu'à la valeur
-    const int segs = big ? 30 : 22;
-    const float segSpan = (endAngle - startAngle) / (float) segs;
     const float rmin = proc.bank[paramIndex].rmin.load(), rmax = proc.bank[paramIndex].rmax.load();
     const bool bipolar = d.type == PType::Float && d.min < 0.0f && d.max > 0.0f;
     const float zeroN = bipolar ? prm->convertTo0to1 (0.0f) : 0.0f;
-    for (int i = 0; i < segs; ++i)
+    // rail éteint : fin et sombre
+    arc (ringR, startAngle, endAngle, Theme::line.withAlpha (0.9f * alpha), 2.0f);
+    // tube néon : plus la valeur est forte, plus il bloome et scintille
     {
-        const float t0 = (float) i / segs, t1 = (float) (i + 1) / segs, tc = (t0 + t1) * 0.5f;
-        const bool lit = bipolar ? (tc >= juce::jmin (zeroN, norm) && tc <= juce::jmax (zeroN, norm)) : tc <= norm;
-        const float a0 = startAngle + i * segSpan + segSpan * 0.14f, a1 = a0 + segSpan * 0.72f;
-        arc (ringR, a0, a1, lit ? colour.withAlpha (alpha) : Theme::line.withAlpha (alpha), lit ? 3.4f : 2.6f);
-    }
-    // halo du dernier segment allumé
-    {
-        const float a = angleOf (norm);
-        arc (ringR, a - 0.06f, a + 0.06f, Theme::text.withAlpha (0.9f * alpha), 3.4f);
+        const float amount = bipolar ? std::abs (norm - zeroN) / juce::jmax (zeroN, 1.0f - zeroN) : norm;
+        const float intensity = juce::jlimit (0.0f, 1.0f, amount);
+        const float flick = 1.0f - flicker * (0.08f + 0.3f * intensity * intensity);
+        const float bloom = (0.2f + 0.8f * intensity) * flick * alpha;
+        const float a0 = bipolar ? angleOf (zeroN) : startAngle, a1 = angleOf (norm);
+        if (std::abs (a1 - a0) > 0.01f)
+        {
+            // halo : couches de plus en plus larges et transparentes
+            const float spread = 2.0f + 7.0f * intensity;
+            for (int k = 4; k >= 1; --k)
+                arc (ringR, a0, a1, colour.withAlpha (bloom * 0.11f * (5 - k) / 4.0f), 3.0f + spread * (float) k * 0.55f);
+            // tube coloré puis cœur presque blanc
+            arc (ringR, a0, a1, colour.withAlpha (juce::jmin (1.0f, 0.75f + 0.25f * bloom) * alpha), 3.2f);
+            arc (ringR, a0, a1, colour.interpolatedWith (juce::Colours::white, 0.35f + 0.45f * intensity).withAlpha ((0.5f + 0.5f * bloom) * alpha), 1.2f);
+            // éclat au bout du tube
+            const float ae = a1 - juce::MathConstants<float>::halfPi;
+            const juce::Point<float> tip { centre.x + std::cos (ae) * ringR, centre.y + std::sin (ae) * ringR };
+            const float gs = 5.0f + 9.0f * intensity;
+            g.setColour (colour.withAlpha (bloom * 0.35f));
+            g.fillEllipse (juce::Rectangle<float> (gs, gs).withCentre (tip));
+            g.setColour (juce::Colours::white.withAlpha ((0.6f + 0.4f * bloom) * alpha));
+            g.fillEllipse (juce::Rectangle<float> (3.0f, 3.0f).withCentre (tip));
+        }
     }
     // plage de random personnalisée (trait bleu extérieur)
     if (std::abs (rmin - d.rmin) > 1.0e-3f || std::abs (rmax - d.rmax) > 1.0e-3f)
