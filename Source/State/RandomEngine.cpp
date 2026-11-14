@@ -7,10 +7,10 @@ juce::String RandomEngine::scopeLabel (Scope s, int target)
 {
     switch (s)
     {
-        case Scope::All: return "Général";
+        case Scope::All: return IDG_T ("Général");
         case Scope::Family: return "Famille " + familyNames()[target];
         case Scope::Effect: return effectDefs()[(size_t) juce::jlimit (0, NumFx - 1, target)].shortName;
-        case Scope::Sequencers: return "Séquenceurs";
+        case Scope::Sequencers: return IDG_T ("Séquenceurs");
     }
     return {};
 }

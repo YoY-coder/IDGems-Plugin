@@ -5,16 +5,16 @@ namespace idg
 {
 namespace
 {
-struct Factory { const char* name; const char* category; const char* tags; };
+struct Factory { juce::String name, category, tags; };
 const Factory factoryList[] {
     { "Init", "Factory", "init" },
     { "Stutter Pump", "Rythmique", "stutter, filtre, pompe" },
-    { "CD Brisé", "Glitch", "corruption, bitcrush, shuffle" },
-    { "Poussière Spatiale", "Texture", "freeze, reverb, ambiance" },
-    { "Comb Métal", "Destruction", "comb, gamme, métal" },
-    { "Bande Fatiguée", "Texture", "tape, wow, lo-fi" },
-    { "Choeur Pixel", "Expérimental", "pixel sort, formant" },
-    { "Carnage", "Glitch", "chaos, séquenceurs, random" },
+    { IDG_T ("CD Brisé"), "Glitch", "corruption, bitcrush, shuffle" },
+    { IDG_T ("Poussière Spatiale"), "Texture", "freeze, reverb, ambiance" },
+    { IDG_T ("Comb Métal"), "Destruction", IDG_T ("comb, gamme, métal") },
+    { IDG_T ("Bande Fatiguée"), "Texture", "tape, wow, lo-fi" },
+    { "Choeur Pixel", IDG_T ("Expérimental"), "pixel sort, formant" },
+    { "Carnage", "Glitch", IDG_T ("chaos, séquenceurs, random") },
     { "Gate Trance", "Rythmique", "gate, delay, phaser" },
 };
 }
@@ -34,7 +34,7 @@ juce::File PresetManager::folder()
 
 const juce::StringArray& PresetManager::categories()
 {
-    static const juce::StringArray c { "Glitch", "Destruction", "Texture", "Rythmique", "Espace", "Expérimental", "Utilisateur" };
+    static const juce::StringArray c { "Glitch", "Destruction", "Texture", "Rythmique", "Espace", IDG_T ("Expérimental"), "Utilisateur" };
     return c;
 }
 

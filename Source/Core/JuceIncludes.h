@@ -8,3 +8,6 @@
 #include <array>
 #include <vector>
 #include <cmath>
+
+/** Littéral UTF-8 (textes en français avec accents). */
+#define IDG_T(x) juce::String (juce::CharPointer_UTF8 (x))

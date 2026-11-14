@@ -45,7 +45,7 @@ struct LfoShape
 
     static const juce::StringArray& presetNames()
     {
-        static const juce::StringArray n { "Sinus", "Triangle", "Rampe +", "Rampe -", "Carré", "Marches", "Expo", "Pulse", "Rebond" };
+        static const juce::StringArray n { "Sinus", "Triangle", "Rampe +", "Rampe -", IDG_T ("Carré"), "Marches", "Expo", "Pulse", "Rebond" };
         return n;
     }
 

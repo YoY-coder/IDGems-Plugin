@@ -1,5 +1,6 @@
 // Tests de stabilité d'IDGems : NaN, plafond du limiteur, feedback, latence, état, CPU.
 #include "PluginProcessor.h"
+#include "PluginEditor.h"
 
 using namespace idg;
 
@@ -84,12 +85,17 @@ struct Harness
     }
 };
 
+const Registry& reg() { return registry(); }
 float ceilingGain (IDGemsProcessor& p) { return dsp::dbToGain (p.getValue (G::ceiling)) + 1.0e-4f; }
 } // namespace
 
-int main()
+int snapshotMain (const juce::String& path, int tab);
+
+int main (int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI init;
+    if (argc >= 3 && juce::String (argv[1]) == "--snapshot")
+        return snapshotMain (argv[2], argc >= 4 ? juce::String (argv[3]).getIntValue() : 0);
     std::cout << "=== Tests de stabilité IDGems ===" << std::endl;
     const auto& reg = registry();
 
@@ -294,4 +300,29 @@ int main()
 
     std::cout << (failures == 0 ? "=== TOUS LES TESTS PASSENT ===" : "=== " + juce::String (failures).toStdString() + " ECHEC(S) ===") << std::endl;
     return failures == 0 ? 0 : 1;
+}
+
+// ---------------------------------------------------------------------------
+// Capture de l'interface (vérification visuelle hors hôte)
+// ---------------------------------------------------------------------------
+int snapshotMain (const juce::String& path, int tab)
+{
+    Harness h;
+    h.proc.random.perform (RandomEngine::Scope::All, 0, 4242, "snap", 0.8f);
+    h.proc.modShared.addConnection (SrcLfo0, reg().fxFirst[FxStutter] + 2, 0.4f, true);
+    h.run (1.5);
+    std::unique_ptr<juce::AudioProcessorEditor> ed (h.proc.createEditor());
+    ed->setSize (1280, 800);
+    for (int i = 0; i < 10; ++i) { h.run (0.05); if (auto* e = dynamic_cast<IDGemsEditor*> (ed.get())) e->debugTick(); }
+    if (tab > 0)
+        if (auto* e = dynamic_cast<IDGemsEditor*> (ed.get())) e->debugSelectTab (tab);
+    for (int i = 0; i < 5; ++i) { h.run (0.05); if (auto* e = dynamic_cast<IDGemsEditor*> (ed.get())) e->debugTick(); }
+    auto img = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.0f);
+    juce::File f (path);
+    f.deleteFile();
+    juce::FileOutputStream os (f);
+    juce::PNGImageFormat png;
+    png.writeImageToStream (img, os);
+    std::cout << "capture : " << f.getFullPathName() << std::endl;
+    return 0;
 }

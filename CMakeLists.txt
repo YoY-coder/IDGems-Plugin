@@ -77,6 +77,12 @@ set(IDGEMS_DEFINITIONS
 
 target_compile_definitions(IDGems PUBLIC ${IDGEMS_DEFINITIONS})
 
+# Les sources sont en UTF-8 (textes en français) : indispensable pour Visual Studio
+if(MSVC)
+    add_compile_options(/utf-8)
+    target_compile_options(IDGems PRIVATE /utf-8)
+endif()
+
 set(IDGEMS_JUCE_MODULES
     juce::juce_audio_utils
     juce::juce_audio_processors
@@ -98,6 +104,9 @@ if(IDGEMS_BUILD_TESTS)
     target_sources(IDGemsTests PRIVATE Tests/StabilityTests.cpp ${IDGEMS_DSP_SOURCES} ${IDGEMS_UI_SOURCES})
     target_include_directories(IDGemsTests PRIVATE Source)
     target_compile_definitions(IDGemsTests PRIVATE ${IDGEMS_DEFINITIONS} IDGEMS_TESTS=1 JUCE_STANDALONE_APPLICATION=0)
+    if(MSVC)
+        target_compile_options(IDGemsTests PRIVATE /utf-8)
+    endif()
     target_link_libraries(IDGemsTests
         PRIVATE ${IDGEMS_JUCE_MODULES}
         PUBLIC juce::juce_recommended_config_flags)
