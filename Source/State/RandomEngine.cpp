@@ -148,7 +148,7 @@ void RandomEngine::perform (Scope scope, int target, uint32_t seed, const juce::
     }
 
     // 3. séquenceurs
-    const bool doSeq = scope == Scope::Sequencers || (settings.doSeq && scope != Scope::Effect) || scope == Scope::Effect;
+    const bool doSeq = scope == Scope::Sequencers || settings.doSeq;
     if (doSeq)
     {
         static const int lengths[] { 4, 5, 7, 8, 12, 16, 16, 16, 32 };
@@ -295,6 +295,6 @@ void RandomEngine::fromTree (const juce::ValueTree& t)
     settings.driftAmount = t.getProperty ("driftAmount", 0.0f);
     settings.driftSpeed = t.getProperty ("driftSpeed", 0.3f);
     settings.doOrder = t.getProperty ("order", true);
-    settings.doSeq = t.getProperty ("seq", true);
+    settings.doSeq = t.getProperty ("seq", false);
 }
 } // namespace idg

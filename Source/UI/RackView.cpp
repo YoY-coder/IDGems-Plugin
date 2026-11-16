@@ -53,6 +53,11 @@ struct RackView::FamilyRow : public juce::Component
 RackView::RackView (EditorContext& c) : ctx (c)
 {
     for (int f = 0; f < NumFamilies; ++f) addAndMakeVisible (families.add (new FamilyRow (c, f)));
+    seqAll.setClickingTogglesState (true);
+    seqAll.setToggleState (c.proc.seqMaster.load(), juce::dontSendNotification);
+    seqAll.setTooltip (IDG_T ("Interrupteur général de tous les séquenceurs (chaque séquenceur garde son réglage)"));
+    seqAll.onClick = [this] { ctx.proc.seqMaster = seqAll.getToggleState(); repaint(); };
+    addAndMakeVisible (seqAll);
 }
 
 RackView::~RackView() = default;
@@ -63,6 +68,7 @@ void RackView::resized()
     r.removeFromTop (22);
     for (auto* f : families) f->setBounds (r.removeFromTop (23));
     listTop = r.getY() + 26;
+    seqAll.setBounds (getWidth() - 8 - 64, listTop - 23, 64, 19);
 }
 
 juce::Rectangle<int> RackView::rowBounds (int slot) const
@@ -87,6 +93,8 @@ void RackView::tick()
     }
     for (int f = 0; f < NumFamilies; ++f)
         families[f]->solo.setToggleState (ctx.proc.rackShared.famSolo[f].load(), juce::dontSendNotification);
+    seqAll.setToggleState (ctx.proc.seqMaster.load(), juce::dontSendNotification);
+    seqAll.setButtonText (ctx.proc.seqMaster.load() ? IDG_T ("SÉQ ON") : IDG_T ("SÉQ OFF"));
     if (changed) repaint();
 }
 
@@ -96,7 +104,7 @@ void RackView::paint (juce::Graphics& g)
     const auto& reg = registry();
     const auto& defs = effectDefs();
     Theme::sectionTitle (g, "// FAMILLES", juce::Rectangle<float> (10, 4, 200, 16), Theme::accent);
-    Theme::sectionTitle (g, IDG_T ("// CHAÎNE  (glisser pour réordonner)"), juce::Rectangle<float> (10, (float) listTop - 20, 220, 16), Theme::accent);
+    Theme::sectionTitle (g, IDG_T ("// CHAÎNE"), juce::Rectangle<float> (10, (float) listTop - 20, 140, 16), Theme::accent);
 
     const auto order = proc.rackShared.getOrder();
     const bool zl = proc.zeroLatency();
@@ -107,7 +115,6 @@ void RackView::paint (juce::Graphics& g)
         auto r = rowBounds (s).toFloat();
         const bool on = proc.getNorm (reg.fxOn[fx]) > 0.5f;
         const bool sel = fx == ctx.selectedFx;
-        const bool par = proc.getNorm (reg.fxPar[fx]) > 0.5f;
         const bool solo = proc.rackShared.solo[fx].load();
         const bool unavailable = zl && d.noZeroLatency;
         const auto fc = familyColour (d.family);
@@ -122,18 +129,11 @@ void RackView::paint (juce::Graphics& g)
         float x = r.getX();
         g.setColour (fc.withAlpha ((on ? 1.0f : 0.35f) * a));
         g.fillRect (x, r.getY(), 3.0f, r.getHeight());
-        if (par && s > 0)
-        {
-            g.setColour (Theme::blue);
-            g.drawLine (x + 7, r.getY() - 2, x + 7, r.getCentreY(), 1.5f);
-            g.drawLine (x + 7, r.getCentreY(), x + 12, r.getCentreY(), 1.5f);
-            x += 10;
-        }
         // activité (barre qui scintille)
         if (on && act[fx] > 0.01f)
         {
             g.setColour (fc.withAlpha (0.25f));
-            g.fillRect (r.withX (x + 4).withWidth ((r.getWidth() - 100.0f) * act[fx]).reduced (0, 3));
+            g.fillRect (r.withX (x + 4).withWidth ((r.getWidth() - 64.0f) * act[fx]).reduced (0, 3));
         }
         drawEffectIcon (g, fx, juce::Rectangle<float> (x + 6, r.getY() + 3, r.getHeight() - 6, r.getHeight() - 6),
                         (on ? fc : Theme::textDim).withAlpha (a), 1.2f, on);
@@ -141,8 +141,8 @@ void RackView::paint (juce::Graphics& g)
         g.setColour ((on ? Theme::text : Theme::textDim).withAlpha (a));
         g.drawText (d.shortName, juce::Rectangle<float> (x + 24, r.getY(), 80, r.getHeight()), juce::Justification::centredLeft);
 
-        // zones : ON, S, P, mode, séquenceur
-        auto z = r.withTrimmedLeft (r.getWidth() - 96);
+        // zones : ON, S (solo), # (séquenceur)
+        auto z = r.withTrimmedLeft (r.getWidth() - 60);
         auto led = z.removeFromLeft (20).reduced (5);
         g.setColour (on ? fc : Theme::line);
         g.fillEllipse (led);
@@ -154,12 +154,8 @@ void RackView::paint (juce::Graphics& g)
             g.drawText (t, zr, juce::Justification::centred);
         };
         tag (z.removeFromLeft (18), "S", solo, Theme::accent);
-        tag (z.removeFromLeft (18), "P", par, Theme::blue);
-        const int mode = (int) proc.getValue (fxParamId (fx, "mode"));
-        static const char* modes[] { "ST", "M", "S", "L", "R" };
-        tag (z.removeFromLeft (22), modes[juce::jlimit (0, 4, mode)], mode != 0, Theme::blue);
         const bool seq = proc.seqData[fx].enabled.load();
-        tag (z, "#", seq, fc);
+        tag (z, "#", seq && proc.seqMaster.load(), seq ? fc : Theme::line);
         if (proc.rackShared.fxLocked[fx].load())
         {
             g.setColour (Theme::red);
@@ -198,7 +194,7 @@ void RackView::mouseDown (const juce::MouseEvent& e)
     if (e.mods.isPopupMenu()) { showFxMenu (fx); return; }
     auto r = rowBounds (s);
     const int fromRight = r.getRight() - e.x;
-    downZone = fromRight > 96 ? 0 : fromRight > 76 ? 1 : fromRight > 58 ? 2 : fromRight > 40 ? 3 : fromRight > 18 ? 4 : 5;
+    downZone = fromRight > 60 ? 0 : fromRight > 40 ? 1 : fromRight > 22 ? 2 : 5;
     dragSlot = s;
     dropSlot = s;
     dragging = false;
@@ -208,14 +204,6 @@ void RackView::mouseDown (const juce::MouseEvent& e)
     {
         case 1: proc.pushUndo(); proc.setNormGesture (reg.fxOn[fx], proc.getNorm (reg.fxOn[fx]) > 0.5f ? 0.0f : 1.0f); break;
         case 2: proc.rackShared.solo[fx] = ! proc.rackShared.solo[fx].load(); break;
-        case 3: proc.pushUndo(); proc.setNormGesture (reg.fxPar[fx], proc.getNorm (reg.fxPar[fx]) > 0.5f ? 0.0f : 1.0f); break;
-        case 4:
-        {
-            proc.pushUndo();
-            const int m = ((int) proc.getValue (fxParamId (fx, "mode")) + 1) % 5;
-            proc.setNormGesture (reg.fxMode[fx], (float) m / 4.0f);
-            break;
-        }
         case 5: proc.seqData[fx].enabled = ! proc.seqData[fx].enabled.load(); break;
         default: if (ctx.selectEffect) ctx.selectEffect (fx); break;
     }

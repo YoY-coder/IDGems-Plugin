@@ -76,6 +76,7 @@ public:
     idg::Snapshot snapshots[idg::NumSnapshots];
     idg::ArrangeSlot arrange[idg::NumArrangeSlots];
     std::atomic<bool> morphEnabled { false };
+    std::atomic<bool> seqMaster { true };   // interrupteur général des séquenceurs
     std::atomic<bool> arrangePlaying { false };
     std::atomic<int> arrangeCurrent { -1 };
 

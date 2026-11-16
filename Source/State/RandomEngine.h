@@ -24,7 +24,7 @@ public:
         float driftSpeed = 0.3f;
         bool driftOn = false;
         bool doOrder = true;      // le random général peut réordonner la chaîne
-        bool doSeq = true;        // le random général touche aux séquenceurs
+        bool doSeq = false;       // le random touche aux séquenceurs (désactivé par défaut)
     };
 
     struct Entry

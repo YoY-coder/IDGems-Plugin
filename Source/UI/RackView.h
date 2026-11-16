@@ -26,6 +26,7 @@ private:
 
     EditorContext& ctx;
     juce::OwnedArray<FamilyRow> families;
+    juce::TextButton seqAll { "SEQ" };
     int listTop = 0;
     static constexpr int rowH = 20;
     int dragSlot = -1, dropSlot = -1, hoverRow = -1;

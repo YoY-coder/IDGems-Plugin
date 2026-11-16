@@ -396,17 +396,11 @@ Registry buildRegistry()
         on.id = fxParamId (i, "on"); on.name = d.shortName + " On";
         r.fxOn[i] = push (common (on));
 
-        auto mix = F ("mix", "Mix", 0.0f, 1.0f, d.defMix, "%", 1.0f, 0.25f, 1.0f, IDG_T ("Dry/wet propre à l'effet"));
+        const bool space = d.family == FamSpace;
+        auto mix = F ("mix", "Mix", 0.0f, 1.0f, space ? d.defMix : 1.0f, "%", 1.0f, 0.25f, 1.0f, IDG_T ("Dry/wet propre à l'effet"));
+        mix.randomizable = space; // le glitch s'assume à 100 % : seuls les effets d'espace ont un mix randomisé
         mix.id = fxParamId (i, "mix"); mix.name = d.shortName + " Mix";
         r.fxMix[i] = push (common (mix));
-
-        auto mode = C ("mode", "Mode", modeNames(), 0, 0.0f, 1.0f, IDG_T ("Traitement : stéréo, mid, side, gauche ou droite"));
-        mode.id = fxParamId (i, "mode"); mode.name = d.shortName + " Mode";
-        r.fxMode[i] = push (common (mode));
-
-        auto par = B ("par", IDG_T ("Parallèle"), false, true, IDG_T ("En parallèle avec l'effet précédent dans la chaîne"));
-        par.id = fxParamId (i, "par"); par.name = d.shortName + " Parallel";
-        r.fxPar[i] = push (common (par));
 
         r.fxFirst[i] = (int) r.all.size();
         r.fxCount[i] = (int) d.params.size();

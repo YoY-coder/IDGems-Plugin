@@ -108,36 +108,9 @@ void Rack::process (float* L, float* R, int n, ProcCtx& ctx, const RackControl& 
         activeArr[fx] = r.target > 0.0f || r.active > 0.0f;
     }
 
-    auto hasLatency = [&] (int fx) { return ! ctx.zeroLatency && rt[(size_t) fx].stft; };
-    auto isPar = [&] (int fx) { return b[reg.fxPar[fx]].on(); };
-
-    const size_t bytes = sizeof (float) * (size_t) n;
-    int s = 0;
-    while (s < NumFx)
-    {
-        int e = s + 1;
-        if (! hasLatency (order[(size_t) s]))
-            while (e < NumFx && isPar (order[(size_t) e]) && ! hasLatency (order[(size_t) e]) && activeArr[order[(size_t) e]])
-                ++e;
-
-        if (e == s + 1)
-        {
-            processSlot (order[(size_t) s], L, R, n, ctx, rc);
-        }
-        else
-        {
-            std::memcpy (gL.data(), L, bytes); std::memcpy (gR.data(), R, bytes);
-            std::memcpy (aL.data(), L, bytes); std::memcpy (aR.data(), R, bytes);
-            for (int j = s; j < e; ++j)
-            {
-                std::memcpy (tL.data(), gL.data(), bytes); std::memcpy (tR.data(), gR.data(), bytes);
-                processSlot (order[(size_t) j], tL.data(), tR.data(), n, ctx, rc);
-                for (int i = 0; i < n; ++i) { aL[(size_t) i] += tL[(size_t) i] - gL[(size_t) i]; aR[(size_t) i] += tR[(size_t) i] - gR[(size_t) i]; }
-            }
-            std::memcpy (L, aL.data(), bytes); std::memcpy (R, aR.data(), bytes);
-        }
-        s = e;
-    }
+    // chaîne strictement en série, dans l'ordre choisi
+    for (int sIdx = 0; sIdx < NumFx; ++sIdx)
+        processSlot (order[(size_t) sIdx], L, R, n, ctx, rc);
 }
 
 void Rack::processSlot (int fx, float* L, float* R, int n, ProcCtx& ctx, const RackControl& rc)
@@ -175,20 +148,8 @@ void Rack::processSlot (int fx, float* L, float* R, int n, ProcCtx& ctx, const R
     ctx.gate = rc.gate[fx];
     if (rc.trig[fx]) r.mod->trigger (ctx);
 
-    // Encodage selon le mode
-    const int mode = b[reg.fxMode[fx]].geti();
-    for (int i = 0; i < n; ++i)
-    {
-        float l = dryL[(size_t) i], rr = dryR[(size_t) i];
-        switch (mode)
-        {
-            case 1: xL[(size_t) i] = xR[(size_t) i] = 0.5f * (l + rr); break;
-            case 2: xL[(size_t) i] = xR[(size_t) i] = 0.5f * (l - rr); break;
-            case 3: xL[(size_t) i] = xR[(size_t) i] = l; break;
-            case 4: xL[(size_t) i] = xR[(size_t) i] = rr; break;
-            default: xL[(size_t) i] = l; xR[(size_t) i] = rr; break;
-        }
-    }
+    std::memcpy (xL.data(), dryL.data(), bytes);
+    std::memcpy (xR.data(), dryR.data(), bytes);
 
     // Traitement (suréchantillonné pour la famille destruction)
     juce::dsp::Oversampling<float>* os = nullptr;
@@ -209,27 +170,16 @@ void Rack::processSlot (int fx, float* L, float* R, int n, ProcCtx& ctx, const R
     else
         r.mod->process (xL.data(), xR.data(), n, ctx);
 
-    // Décodage
-    for (int i = 0; i < n; ++i)
-    {
-        float wl = xL[(size_t) i], wr = xR[(size_t) i];
-        float dl = ddL[(size_t) i], dr = ddR[(size_t) i];
-        switch (mode)
-        {
-            case 1: { float m = 0.5f * (wl + wr), sd = 0.5f * (dl - dr); xL[(size_t) i] = m + sd; xR[(size_t) i] = m - sd; break; }
-            case 2: { float sd = 0.5f * (wl + wr), m = 0.5f * (dl + dr); xL[(size_t) i] = m + sd; xR[(size_t) i] = m - sd; break; }
-            case 3: xL[(size_t) i] = 0.5f * (wl + wr); xR[(size_t) i] = dr; break;
-            case 4: xL[(size_t) i] = dl; xR[(size_t) i] = 0.5f * (wl + wr); break;
-            default: break;
-        }
-    }
-
     // Dry/wet : propre × famille × chaos, avec rampes anti-clic
     float mix = b[reg.fxMix[fx]].get();
     const float famMix = b[famMixIdx[(int) r.family]].get();
+    // Chaos ne dose que les effets d'espace : le glitch reste affirmé
     const float c = rc.chaos;
-    if (c < 0.5f) mix *= c * 2.0f;
-    else mix += (1.0f - mix) * (c - 0.5f) * 1.6f;
+    if (r.family == FamSpace)
+    {
+        if (c < 0.5f) mix *= c * 2.0f;
+        else mix += (1.0f - mix) * (c - 0.5f) * 1.6f;
+    }
     mix = juce::jlimit (0.0f, 1.0f, mix * famMix);
     if (r.mixSm < 0.0f) r.mixSm = mix;
 

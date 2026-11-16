@@ -29,11 +29,9 @@ private:
     int fx = 0;
     juce::OwnedArray<juce::Component> paramComps;
     std::unique_ptr<Knob> mixKnob;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> onAtt, parAtt;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> modeAtt;
-    juce::TextButton onBtn { "ON" }, holdBtn { "HOLD" }, soloBtn { "SOLO" }, parBtn { IDG_T ("PARALLÈLE") },
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> onAtt;
+    juce::TextButton onBtn { "ON" }, holdBtn { "HOLD" }, soloBtn { "SOLO" },
         rndBtn { "RANDOM" }, lockBtn { "LOCK" }, initBtn { "INIT" }, copyBtn { "COPIER" }, pasteBtn { "COLLER" }, transBtn { "TRANS" };
-    juce::ComboBox modeBox;
     std::unique_ptr<juce::Component> scratchPad;
     SeqEditor seq;
     juce::Rectangle<int> header, body;

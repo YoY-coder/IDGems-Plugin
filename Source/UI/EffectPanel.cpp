@@ -41,17 +41,13 @@ EffectPanel::EffectPanel (EditorContext& c) : ctx (c), seq (c)
     addAndMakeVisible (spectrum);
     addAndMakeVisible (scope);
     scope.setInterceptsMouseClicks (false, false);
-    for (auto* b : { &onBtn, &holdBtn, &soloBtn, &parBtn, &rndBtn, &lockBtn, &initBtn, &copyBtn, &pasteBtn, &transBtn })
+    for (auto* b : { &onBtn, &holdBtn, &soloBtn, &rndBtn, &lockBtn, &initBtn, &copyBtn, &pasteBtn, &transBtn })
         addAndMakeVisible (b);
-    addAndMakeVisible (modeBox);
     addAndMakeVisible (seq);
-    modeBox.addItemList (modeNames(), 1);
-    modeBox.setTooltip (IDG_T ("Mode de traitement : stéréo, mid, side, gauche ou droite"));
 
     onBtn.setTooltip (IDG_T ("Allume / éteint l'effet (un effet éteint ne consomme aucun CPU)"));
     holdBtn.setTooltip (IDG_T ("Pad momentané : maintenir = effet actif, relâcher = coupé. En mode Throw : envoi momentané"));
     soloBtn.setTooltip ("Solo de l'effet");
-    parBtn.setTooltip (IDG_T ("En parallèle avec l'effet précédent de la chaîne"));
     rndBtn.setTooltip ("Random de cet effet (Maj + R)");
     lockBtn.setTooltip ("Verrouille l'effet : le random ne le touche jamais");
     initBtn.setTooltip (IDG_T ("Remet l'effet à ses valeurs par défaut"));
@@ -62,7 +58,6 @@ EffectPanel::EffectPanel (EditorContext& c) : ctx (c), seq (c)
     lockBtn.setClickingTogglesState (true);
     lockBtn.setColour (juce::TextButton::buttonOnColourId, Theme::red);
     transBtn.setClickingTogglesState (true);
-    parBtn.setColour (juce::TextButton::buttonOnColourId, Theme::blue);
 
     holdBtn.onStateChange = [this] { ctx.proc.setMomentary (fx, holdBtn.isDown()); };
     soloBtn.onClick = [this] { ctx.proc.rackShared.solo[fx] = soloBtn.getToggleState(); };
@@ -93,10 +88,7 @@ void EffectPanel::rebuild()
     scratchPad.reset();
 
     onAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.apvts, fxParamId (fx, "on"), onBtn);
-    parAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (proc.apvts, fxParamId (fx, "par"), parBtn);
-    modeAtt = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (proc.apvts, fxParamId (fx, "mode"), modeBox);
     onBtn.setClickingTogglesState (true);
-    parBtn.setClickingTogglesState (true);
     onBtn.setColour (juce::TextButton::buttonOnColourId, fc);
     holdBtn.setColour (juce::TextButton::buttonColourId, Theme::panelHi);
 
@@ -171,8 +163,6 @@ void EffectPanel::resized()
     place (row1, onBtn, 44);
     place (row1, holdBtn, 60);
     place (row1, soloBtn, 50);
-    place (row1, parBtn, 84);
-    place (row1, modeBox, 74);
     if (transBtn.isVisible()) place (row1, transBtn, 54);
     place (row2, rndBtn, 70);
     place (row2, lockBtn, 50);

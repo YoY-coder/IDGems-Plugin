@@ -353,7 +353,7 @@ void IDGemsProcessor::processChunk (float* L, float* R, const float* scL, const 
         const bool rise = mom && ! lastMomentary[fx];
         lastMomentary[fx] = mom;
         bool gate = true, trig = false;
-        const bool seqOn = seqData[fx].enabled.load (std::memory_order_relaxed);
+        const bool seqOn = seqMaster.load (std::memory_order_relaxed) && seqData[fx].enabled.load (std::memory_order_relaxed);
         if (seqOn) seqRt[fx].tick (seqData[fx], ppq, chaos, audioRng, gate, trig);
         else seqData[fx].current.store (-1, std::memory_order_relaxed);
         const bool isThrow = (fx == FxDelay && bank[throwDelay].on()) || (fx == FxReverb && bank[throwReverb].on());
@@ -571,8 +571,6 @@ void IDGemsProcessor::initEffect (int fx)
         setNorm (i, params[(size_t) i]->getDefaultValue());
     }
     setNorm (reg.fxMix[fx], params[(size_t) reg.fxMix[fx]]->getDefaultValue());
-    setNorm (reg.fxMode[fx], 0.0f);
-    setNorm (reg.fxPar[fx], 0.0f);
 }
 
 juce::ValueTree IDGemsProcessor::copyEffect (int fx) const
@@ -585,7 +583,7 @@ juce::ValueTree IDGemsProcessor::copyEffect (int fx) const
         auto key = reg.all[(size_t) i].id.fromFirstOccurrenceOf ("_", false, false);
         t.setProperty (key, getNorm (i), nullptr);
     };
-    put (reg.fxMix[fx]); put (reg.fxMode[fx]); put (reg.fxPar[fx]);
+    put (reg.fxMix[fx]);
     for (int k = 0; k < reg.fxCount[fx]; ++k) put (reg.fxFirst[fx] + k);
     t.appendChild (seqData[fx].toTree(), nullptr);
     return t;
@@ -601,7 +599,7 @@ void IDGemsProcessor::pasteEffect (int fx, const juce::ValueTree& t)
         auto key = reg.all[(size_t) i].id.fromFirstOccurrenceOf ("_", false, false);
         if (t.hasProperty (key)) setNorm (i, (float) t.getProperty (key));
     };
-    get (reg.fxMix[fx]); get (reg.fxMode[fx]); get (reg.fxPar[fx]);
+    get (reg.fxMix[fx]);
     if (srcFx == fx) for (int k = 0; k < reg.fxCount[fx]; ++k) get (reg.fxFirst[fx] + k);
     seqData[fx].fromTree (t.getChildWithName ("SEQ"));
 }
@@ -695,8 +693,7 @@ void IDGemsProcessor::applyMorph (float x, float y)
     {
         if (! snapshots[i].valid) continue;
         float dx = x - snapshots[i].x, dy = y - snapshots[i].y;
-        w[i] = 1.0f / (dx * dx + dy * dy + 1.0e-4f);
-        w[i] *= w[i];
+        w[i] = 1.0f / (dx * dx + dy * dy + 0.004f); // inverse du carré de la distance : transitions progressives
         total += w[i];
         if (w[i] > bestW) { bestW = w[i]; best = i; }
     }

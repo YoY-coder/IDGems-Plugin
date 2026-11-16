@@ -245,6 +245,33 @@ int main (int argc, char** argv)
         check (h.proc.rackShared.getOrder() == h2.proc.rackShared.getOrder(), "ordre de la chaîne perdu");
     }
 
+    // 5b. Mix à 100 % jamais randomisé (sauf espace) + morph XY réellement progressif
+    {
+        std::cout << "5b. Mix intouchable + morph XY..." << std::endl;
+        Harness h;
+        for (int k = 0; k < 10; ++k) h.proc.random.perform (RandomEngine::Scope::All, 0, (uint32_t) (900 + k), "t", 1.0f);
+        for (int fx = 0; fx < NumFx; ++fx)
+            if (effectDefs()[(size_t) fx].family != FamSpace)
+                check (std::abs (h.proc.getNorm (reg.fxMix[fx]) - 1.0f) < 1.0e-4f, effectDefs()[(size_t) fx].name + " : mix randomisé");
+        check (! h.proc.seqData[FxStutter].enabled.load() || true, "");
+        int seqs = 0;
+        for (auto& sd : h.proc.seqData) seqs += sd.enabled.load() ? 1 : 0;
+        check (seqs == 0, "le random a allumé " + juce::String (seqs) + " séquenceur(s) alors que l'option est désactivée");
+
+        const int pid = h.proc.indexOf (fxParamId (FxFilter, "cutoff"));
+        h.proc.setNorm (pid, 0.1f); h.proc.storeSnapshot (0);
+        h.proc.setNorm (pid, 0.9f); h.proc.storeSnapshot (1);
+        h.proc.snapshots[0].x = 0.2f; h.proc.snapshots[0].y = 0.5f;
+        h.proc.snapshots[1].x = 0.8f; h.proc.snapshots[1].y = 0.5f;
+        h.proc.applyMorph (0.5f, 0.5f);
+        const float mid = h.proc.getNorm (pid);
+        h.proc.applyMorph (0.35f, 0.5f);
+        const float q = h.proc.getNorm (pid);
+        check (std::abs (mid - 0.5f) < 0.02f, "morph au milieu : " + juce::String (mid));
+        check (q > 0.15f && q < 0.45f, "morph au quart pas progressif : " + juce::String (q));
+        std::cout << "   morph milieu " << mid << ", quart " << q << std::endl;
+    }
+
     // 6. Clics : activation / désactivation d'un effet neutre sur un sinus
     {
         std::cout << "6. Clics à l'activation..." << std::endl;

@@ -27,6 +27,7 @@ juce::ValueTree IDGemsProcessor::captureState (bool forPreset) const
     ex.setProperty ("trans", trans, nullptr);
     ex.setProperty ("fxlock", fxLock, nullptr);
     ex.setProperty ("famsolo", famSolo, nullptr);
+    ex.setProperty ("seqmaster", seqMaster.load(), nullptr);
 
     // cadenas et plages par paramètre
     juce::ValueTree pl ("PARAMLOCKS");
@@ -143,6 +144,7 @@ void IDGemsProcessor::restoreState (const juce::ValueTree& root, bool fromPreset
         rackShared.fxLocked[i] = bits (ex.getProperty ("fxlock"), i, false);
     }
     for (int f = 0; f < NumFamilies; ++f) rackShared.famSolo[f] = bits (ex.getProperty ("famsolo"), f, false);
+    seqMaster = (bool) ex.getProperty ("seqmaster", true);
 
     for (int i = 0; i < (int) reg.all.size(); ++i)
     {

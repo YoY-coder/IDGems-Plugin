@@ -116,7 +116,7 @@ struct Registry
 {
     std::vector<ParamDef> all;
     std::map<juce::String, int> index;
-    int fxOn[NumFx], fxMix[NumFx], fxMode[NumFx], fxPar[NumFx];
+    int fxOn[NumFx], fxMix[NumFx];
     int fxFirst[NumFx], fxCount[NumFx];
 
     int find (const juce::String& id) const
