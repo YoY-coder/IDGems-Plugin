@@ -48,6 +48,7 @@ private:
     std::unique_ptr<Content> content;
     std::unique_ptr<juce::TooltipWindow> tooltip;
     std::vector<float> scopeTmp = std::vector<float> (4096);
+    bool sizeReady = false;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (IDGemsEditor)
 };

@@ -73,6 +73,11 @@ struct IDGemsEditor::Content : public juce::Component
 
 IDGemsEditor::IDGemsEditor (IDGemsProcessor& p) : AudioProcessorEditor (p), proc (p), ctx (p)
 {
+    // Taille mémorisée lue AVANT setResizable / limites : ces appels déclenchent resized()
+    // qui écraserait sinon la valeur sauvegardée (fenêtre qui revient petite à la réouverture).
+    float remembered = proc.editorScale.load();
+    if (remembered <= 0.0f)
+        if (auto* f = proc.appProps.getUserSettings()) remembered = (float) f->getDoubleValue ("uiScale", 0.85);
     Theme::accent = proc.getAccent();
     if (auto* f = proc.appProps.getUserSettings())
     {
@@ -122,9 +127,9 @@ IDGemsEditor::IDGemsEditor (IDGemsProcessor& p) : AudioProcessorEditor (p), proc
         c->setFixedAspectRatio ((double) baseW / baseH);
         c->setSizeLimits (baseW * 6 / 10, baseH * 6 / 10, baseW * 2, baseH * 2);
     }
-    float scale = 1.0f;
-    if (auto* f = proc.appProps.getUserSettings()) scale = (float) f->getDoubleValue ("uiScale", 0.85);
+    const float scale = juce::jlimit (0.6f, 2.0f, remembered > 0.0f ? remembered : 0.85f);
     setSize ((int) (baseW * scale), (int) (baseH * scale));
+    sizeReady = true;
     setWantsKeyboardFocus (true);
     startTimerHz (30);
 }
@@ -147,6 +152,8 @@ void IDGemsEditor::resized()
 {
     const float s = (float) getWidth() / (float) baseW;
     content->setTransform (juce::AffineTransform::scale (s));
+    if (! sizeReady) return; // ne pas sauvegarder les tailles transitoires de la construction
+    proc.editorScale = s;
     if (auto* f = proc.appProps.getUserSettings()) f->setValue ("uiScale", s);
 }
 

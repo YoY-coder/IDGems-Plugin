@@ -77,6 +77,7 @@ public:
     idg::ArrangeSlot arrange[idg::NumArrangeSlots];
     std::atomic<bool> morphEnabled { false };
     std::atomic<bool> seqMaster { true };   // interrupteur général des séquenceurs
+    std::atomic<float> editorScale { 0.0f }; // taille de la fenêtre (0 = jamais ouverte), sauvée avec le projet
     std::atomic<bool> arrangePlaying { false };
     std::atomic<int> arrangeCurrent { -1 };
 
