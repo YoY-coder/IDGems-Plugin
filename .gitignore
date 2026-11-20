@@ -5,3 +5,5 @@ out/
 *.user
 CMakeUserPresets.json
 .DS_Store
+renders/
+stretch-renders/

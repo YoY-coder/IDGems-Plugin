@@ -118,3 +118,48 @@ if(IDGEMS_BUILD_TESTS)
         PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
         PUBLIC juce::juce_recommended_config_flags)
 endif()
+
+# ---------------------------------------------------------------------------
+# Effet Stretch seul : petit VST3 « IDGems Stretch » (méthode « un effet à la fois »)
+# + outil de rendu hors ligne de WAV d'écoute (sec / traité) et de capture d'interface
+# ---------------------------------------------------------------------------
+juce_add_plugin(IDGemsStretch
+    COMPANY_NAME                "IDGems"
+    PLUGIN_MANUFACTURER_CODE    Idgm
+    PLUGIN_CODE                 IdSt
+    PRODUCT_NAME                "IDGems Stretch"
+    FORMATS                     VST3 Standalone
+    IS_SYNTH                    FALSE
+    NEEDS_MIDI_INPUT            FALSE
+    NEEDS_MIDI_OUTPUT           FALSE
+    IS_MIDI_EFFECT              FALSE
+    VST3_CATEGORIES             Fx
+    COPY_PLUGIN_AFTER_BUILD     ${IDGEMS_COPY_AFTER_BUILD})
+
+set(IDGEMS_STRETCH_SOURCES
+    Plugins/Stretch/StretchProcessor.cpp
+    Plugins/Stretch/StretchEditor.cpp
+    Source/UI/Theme.cpp)
+
+target_sources(IDGemsStretch PRIVATE ${IDGEMS_STRETCH_SOURCES})
+target_include_directories(IDGemsStretch PRIVATE Source Plugins/Stretch)
+target_compile_definitions(IDGemsStretch PUBLIC ${IDGEMS_DEFINITIONS})
+if(MSVC)
+    target_compile_options(IDGemsStretch PRIVATE /utf-8)
+endif()
+target_link_libraries(IDGemsStretch
+    PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
+    PUBLIC juce::juce_recommended_config_flags
+           juce::juce_recommended_lto_flags
+           juce::juce_recommended_warning_flags)
+
+juce_add_console_app(IDGemsStretchRender PRODUCT_NAME "IDGemsStretchRender")
+target_sources(IDGemsStretchRender PRIVATE Tools/StretchRender.cpp ${IDGEMS_STRETCH_SOURCES})
+target_include_directories(IDGemsStretchRender PRIVATE Source Plugins/Stretch)
+target_compile_definitions(IDGemsStretchRender PRIVATE ${IDGEMS_DEFINITIONS} IDGEMS_TESTS=1)
+if(MSVC)
+    target_compile_options(IDGemsStretchRender PRIVATE /utf-8)
+endif()
+target_link_libraries(IDGemsStretchRender
+    PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
+    PUBLIC juce::juce_recommended_config_flags)

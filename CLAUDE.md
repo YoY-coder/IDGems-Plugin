@@ -34,6 +34,20 @@ des effets qu'il faut reprendre, pas l'architecture.
 **Mets à jour ce fichier** à la fin de chaque session avec les décisions prises (effet traité,
 réglages validés, ce qui reste à faire).
 
+## Effets traités (méthode « un effet à la fois »)
+### Stretch — en cours (session du 20/11/2026)
+- Demande : inspiré de la section Stretch d'Infiltrator : un **rate** de gel (1/4 de temps, 1/2 temps,
+  1 temps…) où la frame du son se fige, et un **grain** = taille de la frame figée.
+- Code : DSP pur `Source/Effects/StretchEngine.h` ; VST3 seul `Plugins/Stretch/` (« IDGems Stretch »,
+  code plugin `IdSt`) ; outil `Tools/StretchRender.cpp` (`IDGemsStretchRender <dossier> [boucle.wav] [bpm]`
+  rend sec + 6 réglages ; `--snapshot img.png` capture l'interface).
+- Comportement v1 : à chaque pas, le son **joue le temps d'un grain** (min(grain, ½ pas)) puis **reste coincé**
+  sur cette frame (nuage de grains Hann x4, pré-vieillis, bascules en 3 ms à puissance constante).
+  Réglages : Rate (1/32…2/1), Grain (2 ms–1 s), Texture (aléa : buzz net ↔ granuleux),
+  Vitesse (0 = gel, >0 = étirement lent), Hold (part du pas figée, le reste en direct), Mix (100 %).
+  Choix fait : figer le son *après* le pas (le gel du son *avant* le pas capturait des fins de notes, trop faible).
+- Reste à faire : retours à l'oreille de l'utilisateur (idéalement sur SA boucle sèche), puis réintégration au rack.
+
 ## Décisions et retours déjà actés
 - **Mix des effets à 100 % par défaut et jamais randomisé** (« un effet à 20 %, c'est dégueulasse,
   le glitch doit s'affirmer »). Seule exception : famille Espace (delay, reverb, chorus, flanger, phaser).
