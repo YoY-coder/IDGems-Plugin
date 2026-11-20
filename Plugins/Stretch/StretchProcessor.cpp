@@ -24,10 +24,11 @@ static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout()
               { return v >= 1000.0f ? String (v / 1000.0f, 2) + " s" : String (v, v < 10.0f ? 1 : 0) + " ms"; });
 
     l.add (std::make_unique<AudioParameterChoice> (ParameterID { "rate", 1 }, "Rate", StretchProcessor::rateNames(), 4));
+    l.add (std::make_unique<AudioParameterChoice> (ParameterID { "mode", 1 }, "Moteur", StringArray { "Spectral", "Grains" }, 0));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "grain", 1 }, "Grain",
-                                                  NormalisableRange<float> (2.0f, 1000.0f, 0.0f, 0.35f), 60.0f, ms));
+                                                  NormalisableRange<float> (2.0f, 1000.0f, 0.0f, 0.35f), 120.0f, ms));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "texture", 1 }, "Texture",
-                                                  NormalisableRange<float> (0.0f, 1.0f), 0.2f, pct));
+                                                  NormalisableRange<float> (0.0f, 1.0f), 0.3f, pct));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "speed", 1 }, "Vitesse",
                                                   NormalisableRange<float> (0.0f, 1.0f, 0.0f, 0.5f), 0.0f, pct));
     l.add (std::make_unique<AudioParameterFloat> (ParameterID { "hold", 1 }, "Hold",
@@ -48,6 +49,7 @@ StretchProcessor::StretchProcessor()
     pSpeed = apvts.getRawParameterValue ("speed");
     pHold = apvts.getRawParameterValue ("hold");
     pMix = apvts.getRawParameterValue ("mix");
+    pMode = apvts.getRawParameterValue ("mode");
 }
 
 bool StretchProcessor::isBusesLayoutSupported (const BusesLayout& l) const
@@ -91,6 +93,7 @@ void StretchProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     s.speed = pSpeed->load();
     s.hold = pHold->load();
     s.mix = pMix->load();
+    s.mode = (int) pMode->load();
 
     float* L = buffer.getWritePointer (0);
     float* R = numCh > 1 ? buffer.getWritePointer (1) : L;

@@ -46,7 +46,14 @@ réglages validés, ce qui reste à faire).
   Réglages : Rate (1/32…2/1), Grain (2 ms–1 s), Texture (aléa : buzz net ↔ granuleux),
   Vitesse (0 = gel, >0 = étirement lent), Hold (part du pas figée, le reste en direct), Mix (100 %).
   Choix fait : figer le son *après* le pas (le gel du son *avant* le pas capturait des fins de notes, trop faible).
-- Reste à faire : retours à l'oreille de l'utilisateur (idéalement sur SA boucle sèche), puis réintégration au rack.
+- Retour v1 (granulaire seul) : « pas ouf ». Le plus proche était le grain 12 ms / texture 0, mais trop aigu,
+  pas assez texturé, et on ne reconnaissait plus les notes. Cause : des grains identiques répétés tous les
+  grain/4 imposent leur propre hauteur (12 ms → ~330 Hz). Il veut **garder les notes d'origine, étirées, texturées**.
+- v2 : moteur **Spectral** par défaut (vocodeur de phase, verrouillage de phase Laroche-Dolson, Grain = fenêtre
+  d'analyse, FFT jusqu'à 65536 points). Texture = la frame analysée bouge dans la zone figée + phases et
+  amplitudes bousculées. Vérifié : un 440 Hz figé ressort à 440 Hz, au même niveau. Le moteur Grains reste en option.
+  Défauts : 1/8, Spectral, grain 120 ms, texture 30 %.
+- Reste à faire : son avis sur la v2 (idéalement sur SA boucle sèche), puis réintégration au rack.
 
 ## Décisions et retours déjà actés
 - **Mix des effets à 100 % par défaut et jamais randomisé** (« un effet à 20 %, c'est dégueulasse,

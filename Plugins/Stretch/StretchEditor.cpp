@@ -11,8 +11,8 @@ const juce::Colour kGlitch { 0xffff6a00 }; // famille Glitch : orange
 
 struct KnobInfo { const char* id; const char* label; const char* help; };
 const KnobInfo kKnobs[] {
-    { "grain",   "GRAIN",   "Taille de la frame figée. Petit = buzz métallique, grand = nappe étirée." },
-    { "texture", "TEXTURE", "Aléa des grains. 0 = buzz net et périodique, 100 % = granuleux, plus diffus." },
+    { "grain",   "GRAIN",   "Taille de la frame figée. Spectral : petit = plus granuleux et transitoire, grand = nappe lisse et précise. Grains : petit = buzz métallique." },
+    { "texture", "TEXTURE", "0 = gel net. Plus haut : la frame analysée bouge dans la zone figée et les phases sont bousculées : nappe vivante, granuleuse." },
     { "speed",   "VITESSE", "Avance pendant le gel. 0 = gelé net, 25 % = étiré x4, 100 % = temps réel granulaire." },
     { "hold",    "HOLD",    "Part du pas qui reste figée. Le reste repasse le son direct (gel rythmique haché)." },
     { "mix",     "MIX",     "Dosage sec / traité (100 % par défaut)." },
@@ -200,6 +200,9 @@ void StretchEditor::Content::resized()
     auto r = getLocalBounds().reduced (24, 0);
     r.removeFromTop (94);
     auto rateRow = r.removeFromTop (30);
+    // choix du moteur, en haut à droite
+    for (int i = 0; i < modeButtons.size(); ++i)
+        modeButtons[i]->setBounds (getWidth() - 24 - (modeButtons.size() - i) * 112, 24, 106, 28);
     const int bw = rateRow.getWidth() / juce::jmax (1, rateButtons.size());
     for (auto* b : rateButtons) b->setBounds (rateRow.removeFromLeft (bw));
     r.removeFromTop (8);
@@ -234,6 +237,20 @@ StretchEditor::StretchEditor (StretchProcessor& p) : AudioProcessorEditor (p), p
     rateAtt = std::make_unique<juce::ParameterAttachment> (
         *proc.apvts.getParameter ("rate"), [this] (float v) { currentRate = (int) std::lround (v); updateRateButtons(); });
     rateAtt->sendInitialUpdate();
+
+    const juce::StringArray modes { "SPECTRAL", "GRAINS" };
+    const char* modeHelp[] { "Spectral : chaque partiel continue à sa vraie hauteur, les notes d'origine restent, étirées.",
+                             "Grains : boucle de grains. Les grains courts imposent leur propre hauteur (buzz métallique)." };
+    for (int i = 0; i < modes.size(); ++i)
+    {
+        auto* b = content.modeButtons.add (new juce::TextButton (modes[i]));
+        b->onClick = [this, i] { if (modeAtt) modeAtt->setValueAsCompleteGesture ((float) i); };
+        b->setTooltip (IDG_T (modeHelp[i]));
+        content.addAndMakeVisible (b);
+    }
+    modeAtt = std::make_unique<juce::ParameterAttachment> (
+        *proc.apvts.getParameter ("mode"), [this] (float v) { currentMode = (int) std::lround (v); updateRateButtons(); });
+    modeAtt->sendInitialUpdate();
 
     for (auto& k : kKnobs)
     {
@@ -280,6 +297,8 @@ void StretchEditor::updateRateButtons()
 {
     for (int i = 0; i < content.rateButtons.size(); ++i)
         content.rateButtons[i]->setToggleState (i == currentRate, juce::dontSendNotification);
+    for (int i = 0; i < content.modeButtons.size(); ++i)
+        content.modeButtons[i]->setToggleState (i == currentMode, juce::dontSendNotification);
 }
 
 void StretchEditor::paint (juce::Graphics& g) { g.fillAll (Theme::bg); }

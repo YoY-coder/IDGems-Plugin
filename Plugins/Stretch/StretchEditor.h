@@ -45,16 +45,16 @@ private:
     {
         void paint (juce::Graphics&) override;
         void resized() override;
-        juce::OwnedArray<juce::TextButton> rateButtons;
+        juce::OwnedArray<juce::TextButton> rateButtons, modeButtons;
         juce::OwnedArray<juce::Slider> knobs;
         juce::OwnedArray<juce::Label> labels;
         std::unique_ptr<StepStrip> strip;
     } content;
 
-    std::unique_ptr<juce::ParameterAttachment> rateAtt;
+    std::unique_ptr<juce::ParameterAttachment> rateAtt, modeAtt;
     juce::OwnedArray<juce::AudioProcessorValueTreeState::SliderAttachment> knobAtts;
     std::unique_ptr<juce::TooltipWindow> tooltip;
-    int currentRate = -1;
+    int currentRate = -1, currentMode = -1;
     bool sizeReady = false;
 };
 } // namespace idg

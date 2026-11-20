@@ -46,7 +46,7 @@ public:
 private:
     StretchEngine engine;
     std::atomic<float>* pRate = nullptr, *pGrain = nullptr, *pTexture = nullptr,
-                      *pSpeed = nullptr, *pHold = nullptr, *pMix = nullptr;
+                      *pSpeed = nullptr, *pHold = nullptr, *pMix = nullptr, *pMode = nullptr;
     double sr = 44100.0;
     double freeBeat = 0.0; // horloge interne quand le transport est arrêté
 };
