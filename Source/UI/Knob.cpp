@@ -157,25 +157,19 @@ void Knob::paint (juce::Graphics& g)
         if (innerR < radius * 0.45f) break;
     }
 
-    // corps octogonal avec encoche
-    auto body = dial.reduced (size * 0.25f);
-    juce::Path oct;
-    for (int i = 0; i < 8; ++i)
-    {
-        const float a = juce::MathConstants<float>::pi * (0.125f + i * 0.25f);
-        juce::Point<float> pt { centre.x + std::cos (a) * body.getWidth() * 0.52f, centre.y + std::sin (a) * body.getWidth() * 0.52f };
-        if (i == 0) oct.startNewSubPath (pt); else oct.lineTo (pt);
-    }
-    oct.closeSubPath();
-    g.setColour (Theme::panelHi.withAlpha (alpha));
-    g.fillPath (oct);
-    g.setColour (Theme::line.brighter (0.35f).withAlpha (alpha));
-    g.strokePath (oct, juce::PathStrokeType (1.0f));
+    // corps rond : roche noire, reflet froid (comme les modules solo)
+    auto body = dial.reduced (size * (big ? 0.19f : 0.22f));
+    juce::ColourGradient grad (juce::Colour (0xff2a2a31).withMultipliedAlpha (alpha), body.getX(), body.getY(),
+                               juce::Colour (0xff050506).withMultipliedAlpha (alpha), body.getRight(), body.getBottom(), false);
+    g.setGradientFill (grad);
+    g.fillEllipse (body);
+    g.setColour (Theme::line.withAlpha (alpha));
+    g.drawEllipse (body, 1.0f);
     {
         const float a = angleOf (norm) - juce::MathConstants<float>::halfPi;
-        const float r0 = body.getWidth() * 0.12f, r1 = body.getWidth() * 0.5f;
-        g.setColour (colour.withAlpha (alpha));
-        g.drawLine (centre.x + std::cos (a) * r0, centre.y + std::sin (a) * r0, centre.x + std::cos (a) * r1, centre.y + std::sin (a) * r1, 2.2f);
+        const float r0 = body.getWidth() * 0.18f, r1 = body.getWidth() * 0.46f;
+        g.setColour (colour.interpolatedWith (juce::Colours::white, 0.5f).withAlpha (alpha));
+        g.drawLine (centre.x + std::cos (a) * r0, centre.y + std::sin (a) * r0, centre.x + std::cos (a) * r1, centre.y + std::sin (a) * r1, big ? 2.6f : 2.0f);
     }
     // point de valeur modulée
     if (std::abs (modNorm - norm) > 0.002f)

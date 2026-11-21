@@ -76,7 +76,7 @@ ressort intact, RETOUR n'y touche pas), **filtre graphique** (courbe + poignées
 Beat Repeat (branche d'une autre session : corps « roche noire » + reflet, libellé tranché dessous).
 Le sec du module solo ne passe plus par le passe-haut de sécurité (`OutputChain::Settings::dcProtect`).
 Reste à faire : son essai de cette version. Prochain module : à lui de choisir.
-À noter : le rack IDGems a encore des potards octogonaux (Knob.cpp) — à harmoniser s'il le demande.
+
 
 ## Décisions et retours déjà actés
 - **Mix des effets à 100 % par défaut et jamais randomisé** (« un effet à 20 %, c'est dégueulasse,
@@ -97,6 +97,7 @@ Reste à faire : son essai de cette version. Prochain module : à lui de choisir
 - Typo des titres : Michroma (SIL OFL, `Resources/Fonts`) avec effet « tranché » maison
   (`Theme::cutText`). Sa police d'origine est un mix de plusieurs polices : il valide le rendu actuel.
 - Potards : **arc néon plein** qui bloome et scintille plus la valeur est forte (il n'aimait pas le pointillé).
+  **Corps rond** « roche noire » + reflet partout (rack et modules solo) : plus jamais d'octogone (« cheap »).
 - Onglet Sortie en **boîtes par module avec retours graphiques** (courbe de soft clip + position du
   signal, OTT par bande, historique du limiteur…) + **spectre détaillé**. Un **logo vectoriel par effet**.
 - Braises animées qui réagissent au son (réglable : Réglages → Glitch visuel).
