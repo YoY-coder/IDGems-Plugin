@@ -34,6 +34,28 @@ des effets qu'il faut reprendre, pas l'architecture.
 **Mets à jour ce fichier** à la fin de chaque session avec les décisions prises (effet traité,
 réglages validés, ce qui reste à faire).
 
+## Modules solo (suivi)
+Structure : DSP dans `Source/Effects/<Nom>.h` (classe autonome, sans MParam), plugin dans
+`Plugins/<Nom>/` (Processor + Editor), widgets communs dans `Source/UI/Solo/SoloWidgets.*`
+(potard néon APVTS, rangée de boutons, fond fissuré), tests dans `Tests/<Nom>Tests.cpp`
+(`--snapshot capture.png`, `--render boucle_140bpm.wav dossier/` pour rendre des WAV d'écoute ;
+le tempo est lu dans le nom du fichier). CI : un artefact par module (`IDGems-<Nom>-VST3-Windows`).
+
+### Module 01 — Delay (`GlitchDelay`, plugin « IDGems Delay ») — v1 livrée le 21/11/2026, À ÉCOUTER
+Cahier des charges de l'utilisateur :
+- temps courts : **jamais plus d'une noire (1/4)** en sync ; toutes les sous-divisions en dessous
+  (1/128 → 1/4), droit / pointé / **ternaire au choix mais jamais choisi par le random** ;
+- mode **free** avec temps très courts (0,3 ms → 500 ms) ;
+- modes **Stéréo / Ping-pong / Mono** (+ décalage stéréo ±20 ms) ; inspiration : delay d'Infiltrator ;
+- **coupe-bas + coupe-haut** dans la boucle pour shaper le tone ;
+- **feedback jusqu'à 110 %** (emballement tenu par une saturation douce dans la boucle),
+  **random plafonné à 100 %**.
+Choix faits (à valider à l'oreille) : 1/4 pointé interdit (retombe sur 1/4) ; random = 70 % sync,
+25 % de pointé, divisions surtout 1/32–1/16 ; **mix jamais randomisé** (50 % par défaut) ;
+changement de temps = fondu entre deux têtes (12 ms, pas de glissement de pitch) ; changement de
+mode = fondu de 10 ms du routage. Pas encore de résonance de filtre, de wow, de throw, de ducking.
+Reste à faire : retours d'écoute (boucle sèche → rendu WAV), puis réintégration dans le rack IDGems.
+
 ## Décisions et retours déjà actés
 - **Mix des effets à 100 % par défaut et jamais randomisé** (« un effet à 20 %, c'est dégueulasse,
   le glitch doit s'affirmer »). Seule exception : famille Espace (delay, reverb, chorus, flanger, phaser).
@@ -76,6 +98,8 @@ Source/Modulation  LFO (formes au crayon), random, envelope follower, macros
 Source/Engine      séquenceurs, chaîne de sortie (HP, mono, OTT, clip, limiteur), enregistreur
 Source/State       random (seed, historique, favoris, apprentissage), presets, état
 Source/UI          interface (Theme, Knob, RackView, EffectPanel, Graphs, Icons, panneaux…)
-Tests              tests de stabilité + capture d'interface
+Plugins/<Nom>      modules solo (un effet = un VST3) : Processor + Editor
+Source/UI/Solo     widgets communs aux modules solo
+Tests              tests de stabilité + capture d'interface (+ un fichier de tests par module solo)
 docs/INSTALLATION.md  installation pas à pas pour l'utilisateur
 ```

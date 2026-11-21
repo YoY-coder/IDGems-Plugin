@@ -118,3 +118,50 @@ if(IDGEMS_BUILD_TESTS)
         PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
         PUBLIC juce::juce_recommended_config_flags)
 endif()
+
+# ---------------------------------------------------------------------------
+# Modules solo : un effet = un petit VST3 (même socle Core / Effects / UI)
+# ---------------------------------------------------------------------------
+set(IDGEMS_SOLO_UI_SOURCES
+    Source/UI/Theme.cpp
+    Source/UI/LookAndFeel.cpp
+    Source/UI/Solo/SoloWidgets.cpp)
+
+# --- Module 01 : IDGems Delay ---
+juce_add_plugin(IDGemsDelay
+    COMPANY_NAME                "IDGems"
+    PLUGIN_MANUFACTURER_CODE    Idgm
+    PLUGIN_CODE                 IdDl
+    PRODUCT_NAME                "IDGems Delay"
+    FORMATS                     VST3
+    IS_SYNTH                    FALSE
+    NEEDS_MIDI_INPUT            FALSE
+    NEEDS_MIDI_OUTPUT           FALSE
+    IS_MIDI_EFFECT              FALSE
+    VST3_CATEGORIES             Fx Delay
+    COPY_PLUGIN_AFTER_BUILD     ${IDGEMS_COPY_AFTER_BUILD})
+set(IDGEMS_DELAY_SOURCES Plugins/Delay/DelayProcessor.cpp Plugins/Delay/DelayEditor.cpp ${IDGEMS_SOLO_UI_SOURCES})
+target_sources(IDGemsDelay PRIVATE ${IDGEMS_DELAY_SOURCES})
+target_include_directories(IDGemsDelay PRIVATE Source)
+target_compile_definitions(IDGemsDelay PUBLIC ${IDGEMS_DEFINITIONS})
+if(MSVC)
+    target_compile_options(IDGemsDelay PRIVATE /utf-8)
+endif()
+target_link_libraries(IDGemsDelay
+    PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
+    PUBLIC juce::juce_recommended_config_flags
+           juce::juce_recommended_lto_flags
+           juce::juce_recommended_warning_flags)
+
+if(IDGEMS_BUILD_TESTS)
+    juce_add_console_app(IDGemsDelayTests PRODUCT_NAME "IDGemsDelayTests")
+    target_sources(IDGemsDelayTests PRIVATE Tests/DelayTests.cpp ${IDGEMS_DELAY_SOURCES})
+    target_include_directories(IDGemsDelayTests PRIVATE Source)
+    target_compile_definitions(IDGemsDelayTests PRIVATE ${IDGEMS_DEFINITIONS} IDGEMS_TESTS=1 JUCE_STANDALONE_APPLICATION=0)
+    if(MSVC)
+        target_compile_options(IDGemsDelayTests PRIVATE /utf-8)
+    endif()
+    target_link_libraries(IDGemsDelayTests
+        PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
+        PUBLIC juce::juce_recommended_config_flags)
+endif()

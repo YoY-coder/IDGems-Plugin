@@ -18,6 +18,10 @@ respecte la norme VST3).
    - clique sur **Rescanner**.
 7. Dans le navigateur d'Ableton : **Plug-ins → IDGems → IDGems**. Glisse-le sur une piste audio.
 
+> **Modules solo (un effet = un petit plugin).** Même page, même section **Artifacts** :
+> **IDGems-Delay-VST3-Windows** contient le dossier **`IDGems Delay.vst3`**. Il s'installe exactement
+> pareil (étapes 4 à 6) et apparaît dans Ableton sous **Plug-ins → IDGems → IDGems Delay**.
+
 > Si une ancienne version est déjà installée, ferme Ableton avant de remplacer le dossier.
 
 ## Option B — Compiler toi-même avec Visual Studio

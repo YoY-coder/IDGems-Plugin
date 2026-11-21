@@ -26,6 +26,7 @@ public:
         float ottDepth = 0, ottTime = 1, ottUp = 1, ottDown = 1, ottGainDb = 0;
         float outGainDb = 0, clipDriveDb = 0, ceilingDb = -0.3f, releaseMs = 80;
         bool zeroLatency = false;
+        bool softClip = true;      // false : limiteur seul (modules solo, sec intact)
     };
 
     void prepare (double sampleRate)
@@ -123,7 +124,7 @@ public:
                 float x = v[k] * outGain * drive;
                 clipPk = juce::jmax (clipPk, std::abs (x));
                 float a = std::abs (x);
-                if (a > 0.7f) x = std::copysign (0.7f + 0.3f * dsp::fastTanh ((a - 0.7f) / 0.3f), x);
+                if (s.softClip && a > 0.7f) x = std::copysign (0.7f + 0.3f * dsp::fastTanh ((a - 0.7f) / 0.3f), x);
                 v[k] = x;
             }
             // 5. limiteur
