@@ -92,7 +92,7 @@ bool writeWav (const juce::File& f, const juce::AudioBuffer<float>& b, double sr
     return w->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
 }
 
-struct Preset { const char* file; const char* label; double rate; float grain, tex, speed, hold; int mode; };
+struct Preset { const char* file; const char* label; double rate; float hz, hp, lp, reso; };
 } // namespace
 
 int main (int argc, char** argv)
@@ -104,6 +104,11 @@ int main (int argc, char** argv)
         // capture de l'interface du plugin (vérification du rendu)
         idg::StretchProcessor proc;
         proc.prepareToPlay (44100.0, 512);
+        if (argc > 3) // exemple de réglage du filtre pour vérifier la courbe
+        {
+            auto set = [&] (const char* id, float v) { auto* q = proc.apvts.getParameter (id); q->setValueNotifyingHost (q->convertTo0to1 (v)); };
+            set ("hp", 150.0f); set ("lp", 4000.0f); set ("reso", 0.5f);
+        }
         juce::AudioBuffer<float> b (2, 512); juce::MidiBuffer m;
         for (int k = 0; k < 40; ++k) { b.clear(); proc.processBlock (b, m); }
         std::unique_ptr<juce::AudioProcessorEditor> ed (proc.createEditor());
@@ -135,13 +140,12 @@ int main (int argc, char** argv)
     writeWav (out.getChildFile ("00_sec.wav"), dry, sr);
 
     const Preset presets[] {
-        { "01_spectral_1-8_grain120.wav",          "spectral, 1/8, grain 120 ms, texture 0",              0.5,  120.0f, 0.0f,  0.0f,  1.0f, 0 },
-        { "02_spectral_1-8_grain120_tex35.wav",    "spectral, 1/8, grain 120 ms, texture 35 %",           0.5,  120.0f, 0.35f, 0.0f,  1.0f, 0 },
-        { "03_spectral_1-4_grain200_tex50_vit10.wav", "spectral, 1/4, grain 200 ms, tex 50 %, vit 10 %",  1.0,  200.0f, 0.5f,  0.1f,  1.0f, 0 },
-        { "04_spectral_1-16_grain60_tex30.wav",    "spectral, 1/16, grain 60 ms, texture 30 %",           0.25, 60.0f,  0.3f,  0.0f,  1.0f, 0 },
-        { "05_spectral_1-8_grain30_tex60.wav",     "spectral, 1/8, grain 30 ms, texture 60 % (grain)",    0.5,  30.0f,  0.6f,  0.0f,  1.0f, 0 },
-        { "06_spectral_1-2_grain400_tex40_vit15.wav", "spectral, 1/2, grain 400 ms, tex 40 %, vit 15 %", 2.0,  400.0f, 0.4f,  0.15f, 1.0f, 0 },
-        { "07_grains_1-8_grain12_ancien4.wav",     "grains, 1/8, grain 12 ms (l'ancien n°4)",             0.5,  12.0f,  0.0f,  0.0f,  1.0f, 1 },
+        { "01_1-16_40Hz.wav",            "1/16, grain 40 Hz (réglage Infiltrator)",  0.25, 40.0f,  20.0f,  20000.0f, 0.0f },
+        { "02_1-16_20Hz.wav",            "1/16, grain 20 Hz",                        0.25, 20.0f,  20.0f,  20000.0f, 0.0f },
+        { "03_1-16_80Hz.wav",            "1/16, grain 80 Hz",                        0.25, 80.0f,  20.0f,  20000.0f, 0.0f },
+        { "04_1-8_40Hz.wav",             "1/8, grain 40 Hz",                         0.5,  40.0f,  20.0f,  20000.0f, 0.0f },
+        { "05_1-32_40Hz.wav",            "1/32, grain 40 Hz",                        0.125, 40.0f, 20.0f,  20000.0f, 0.0f },
+        { "06_1-16_40Hz_filtre.wav",     "1/16, 40 Hz, coupe-bas 200 Hz, coupe-haut 3 kHz, réso 40 %", 0.25, 40.0f, 200.0f, 3000.0f, 0.4f },
     };
 
     bool ok = true;
@@ -151,7 +155,7 @@ int main (int argc, char** argv)
         idg::StretchEngine e;
         e.prepare (sr);
         idg::StretchEngine::Settings s;
-        s.rateBeats = p.rate; s.grainMs = p.grain; s.texture = p.tex; s.speed = p.speed; s.hold = p.hold; s.mode = p.mode;
+        s.rateBeats = p.rate; s.grainHz = p.hz; s.hpHz = p.hp; s.lpHz = p.lp; s.reso = p.reso;
         const double spb = sr * 60.0 / bpm;
         const int blk = 256;
         for (int pos = 0; pos < b.getNumSamples(); pos += blk)

@@ -53,7 +53,23 @@ réglages validés, ce qui reste à faire).
   d'analyse, FFT jusqu'à 65536 points). Texture = la frame analysée bouge dans la zone figée + phases et
   amplitudes bousculées. Vérifié : un 440 Hz figé ressort à 440 Hz, au même niveau. Le moteur Grains reste en option.
   Défauts : 1/8, Spectral, grain 120 ms, texture 30 %.
-- Reste à faire : son avis sur la v2 (idéalement sur SA boucle sèche), puis réintégration au rack.
+- Retour v2 (spectral) : « pas ouf » aussi. Il veut tester en conditions réelles (VST3), et fixe le cahier des charges :
+  **vitesse toujours 0, mix toujours 100 %** (aucun son direct mélangé), Rate = période de répétition,
+  Grain = taille du grain répété, + **filtre coupe-bas / coupe-haut graphique**.
+- Référence fournie : rendu Infiltrator « speed 0, grain 40 Hz, 1/16 » (synthé Vital, 120 BPM). Analyse :
+  le son se répète **exactement toutes les 1102,5 échantillons = 1/40 s** (boucle d'UN grain, forme d'onde
+  intacte, pas de creux d'enveloppe au raccord : pas de nuage de grains superposés) ; nouvelle frame toutes
+  les 125 ms (1/16) ; juste après chaque pas, ~1 à 2 grains non répétitifs (son direct + bascule) avant la boucle.
+  => le « Grain » d'Infiltrator est une fréquence (Hz) = 1 / durée de la boucle.
+- v3 (actuelle) : moteur réécrit en conséquence (le spectral et le nuage de grains sont abandonnés, voir
+  l'historique git) : à chaque pas, son direct pendant 1/f (min ½ pas), puis boucle exacte de 1/f, raccord
+  sans clic (les premiers ms de la boucle sont fondus avec ce qui suivait la fenêtre), boucle copiée hors du
+  tampon circulaire. Paramètres : Rate (défaut 1/16), Grain 1–500 Hz (défaut 40 Hz), coupe-bas, coupe-haut
+  (24 dB/oct, SVF x2), Résonance. Interface : Rate, gros potard Grain (+ durée en ms), filtre graphique
+  (spectre de sortie + courbe, poignées : glisser = fréquence, haut/bas = résonance, double-clic = reset).
+  Hold/Texture/Vitesse/Mix supprimés (Hold : question posée, pas de réponse ; à rajouter s'il le demande).
+- CI : artefact séparé **IDGems-Stretch-VST3-Windows** (le Stretch seul).
+- Reste à faire : ses retours en conditions réelles sur la v3, puis réintégration au rack.
 
 ## Décisions et retours déjà actés
 - **Mix des effets à 100 % par défaut et jamais randomisé** (« un effet à 20 %, c'est dégueulasse,

@@ -3,58 +3,38 @@
 
 namespace idg
 {
-/** Stretch : à chaque pas rythmique (Rate), le son joue le temps d'un grain puis reste « coincé »
-    sur cette frame.
-    Deux moteurs :
-    - Spectral (défaut) : vocodeur de phase à verrouillage de phase (Laroche-Dolson). Chaque partiel
-      continue à sa vraie fréquence : les notes d'origine restent, étirées à l'infini.
-    - Grains : nuage de grains (Hann x4). Les grains courts imposent leur propre hauteur (buzz métallique).
-    - Grain   : taille de la frame figée (= fenêtre d'analyse en spectral)
-    - Texture : spectral = la frame analysée bouge dans la zone figée + phases bousculées (nappe vivante,
-                granuleuse) ; grains = aléa de position / d'espacement
-    - Vitesse : avance de la tête de lecture (0 = gel total, 0.25 = étiré x4, 1 = temps réel)
-    - Hold    : part du pas qui reste figée (le reste repasse le son direct)
-    Pur DSP, sans allocation dans process(), utilisable seul (plugin Stretch) ou dans le rack. */
+/** Stretch (v3, calqué sur l'analyse d'un rendu Infiltrator « speed 0, grain 40 Hz, 1/16 ») :
+    à chaque pas rythmique (Rate), le son direct passe le temps d'un grain (1/f), puis ce grain
+    est rejoué en boucle exacte jusqu'au pas suivant. La boucle a une période de 1/f : à 40 Hz,
+    25 ms rejouées 40 fois par seconde (forme d'onde intacte, pas de nuage de grains superposés).
+    - Raccord de boucle sans clic : les X premiers échantillons de la boucle sont fondus avec les
+      X échantillons qui suivent la fenêtre, donc la fin de la boucle enchaîne sur son début comme
+      dans le son d'origine, et le premier passage prolonge le son direct sans rupture.
+    - Bascule boucle précédente -> son direct : fondu à puissance constante de quelques ms.
+    - Sortie : coupe-bas et coupe-haut 24 dB/oct (deux SVF en cascade chacun), résonance commune.
+    Pur DSP, sans allocation dans process(). */
 class StretchEngine
 {
 public:
     struct Settings
     {
-        double rateBeats = 0.5;  // durée d'un pas en noires
-        float grainMs = 60.0f;
-        float texture = 0.25f;
-        float speed = 0.0f;
-        float hold = 1.0f;
-        float mix = 1.0f;
-        int mode = 0;            // 0 = spectral, 1 = grains
+        double rateBeats = 0.25; // durée d'un pas en noires (0.25 = 1/16)
+        float grainHz = 40.0f;   // fréquence de répétition du grain
+        float hpHz = 20.0f;      // coupe-bas
+        float lpHz = 20000.0f;   // coupe-haut
+        float reso = 0.0f;       // résonance des deux filtres (0..1)
     };
 
-    static constexpr int numGrains = 24;
-    static constexpr double maxGrainMs = 1000.0;
-    static constexpr int maxOrder = 16;              // FFT jusqu'à 65536 points
-    static constexpr int maxW = 1 << maxOrder;
+    static constexpr float minGrainHz = 1.0f;
 
     void prepare (double sampleRate)
     {
         sr = sampleRate;
-        // retour en arrière max : grain * (1 + 1.5 * texture) + marge
-        buf.allocate (juce::jmax ((int) (sr * (maxGrainMs * 0.001 * 3.0 + 0.5)), 3 * maxW + 4096));
-        for (int o = 5; o <= maxOrder; ++o) ffts[(size_t) o] = std::make_unique<juce::dsp::FFT> (o);
-        fftBuf.assign ((size_t) (2 * maxW), 0.0f);
-        win.assign ((size_t) maxW, 0.0f);
-        for (int c = 0; c < 2; ++c)
-        {
-            ch[c].mag.assign ((size_t) (maxW / 2 + 1), 0.0f);
-            ch[c].ph.assign ((size_t) (maxW / 2 + 1), 0.0f);
-            ch[c].omega.assign ((size_t) (maxW / 2 + 1), 0.0f);
-            ch[c].syn.assign ((size_t) (maxW / 2 + 1), 0.0f);
-            ch[c].peakOf.assign ((size_t) (maxW / 2 + 1), 0);
-        }
-        olaSize = juce::nextPowerOfTwo (2 * maxW + 1024);
-        olaMask = olaSize - 1;
-        ola[0].assign ((size_t) olaSize, 0.0f);
-        ola[1].assign ((size_t) olaSize, 0.0f);
-        xfLen = juce::jmax (8.0, sr * 0.003);
+        // un grain de 1 s + marge (fenêtre + fondu)
+        buf.allocate ((int) (sr * 2.5) + 1024);
+        maxXf = juce::jmax (8.0, sr * 0.003);
+        const auto cap = (size_t) (sr / minGrainHz + maxXf + 64);
+        for (auto* b : { &cur, &old }) { b->d[0].assign (cap, 0.0f); b->d[1].assign (cap, 0.0f); }
         reset();
     }
 
@@ -63,30 +43,19 @@ public:
         buf.clear();
         t = 0;
         lastStep = std::numeric_limits<int64_t>::min();
-        for (auto& g : grains) g.active = false;
-        anchor = 0; tickTime = 0; spawnAcc = 0;
-        wet = 0.0f;
-        cloud = false;
-        captureEnd = cloudStart = 0;
-        rng.seed (0x57E7C4u);
-        for (auto& o : ola) std::fill (o.begin(), o.end(), 0.0f);
-        spectral = false;
+        looping = false;
+        oldActive = false;
+        for (auto& f : hp) f.reset();
+        for (auto& f : lp) f.reset();
+        hpSm = 20.0f; lpSm = 20000.0f; resoSm = 0.0f;
+        filtCount = 0;
     }
 
     /** beatPos : position (en noires) au début du bloc ; spb : échantillons par noire. */
     void process (float* L, float* R, int n, double beatPos, double spb, const Settings& s)
     {
-        const double G = juce::jlimit (16.0, maxGrainMs * 0.001 * sr, (double) s.grainMs * 0.001 * sr);
-        const double hop = G * 0.25;
-        const float tex = juce::jlimit (0.0f, 1.0f, s.texture);
-        const float speed = juce::jlimit (0.0f, 1.0f, s.speed);
         const double rate = juce::jmax (1.0 / 64.0, s.rateBeats);
-        const float hold = juce::jlimit (0.02f, 1.0f, s.hold);
-        const float mix = juce::jlimit (0.0f, 1.0f, s.mix);
-        // grains cohérents (texture 0) : somme de Hann x4 = 2 ; décorrélés : ~1.22
-        const float norm = 0.5f * (1.0f + 0.63f * tex);
-        const bool specMode = s.mode == 0;
-        const float wetStep = (float) (1.0 / xfLen);
+        const double G = juce::jlimit (16.0, sr / (double) minGrainHz, sr / (double) juce::jmax (minGrainHz, s.grainHz));
 
         for (int i = 0; i < n; ++i)
         {
@@ -94,107 +63,190 @@ public:
             buf.push (inL, inR);
 
             const double beat = beatPos + (double) i / spb;
-            const double stepPos = beat / rate;
-            const auto step = (int64_t) std::floor (stepPos);
-            const double phase = stepPos - (double) step;
+            const auto step = (int64_t) std::floor (beat / rate);
 
             if (step != lastStep)
             {
-                // nouveau pas : l'ancien gel s'éteint, le son direct repasse et la nouvelle frame s'enregistre
+                // nouveau pas : la boucle en cours s'efface vers le son direct, la nouvelle frame s'enregistre
                 lastStep = step;
-                for (auto& g : grains)
-                    if (g.active) g.fadeDir = -1;
-                cloud = false;
-                tickTime = t;
                 const double stepLen = rate * spb;
-                captureEnd = t + (int64_t) std::llround (juce::jmin (G, stepLen * 0.5));
+                const double capture = juce::jmin (G, stepLen * 0.5);
+                xf = juce::jmax (1.0, juce::jmin (maxXf, capture * 0.5, G * 0.25));
+                if (looping)
+                {
+                    std::swap (cur, old); // l'ancienne boucle garde son tampon pendant le fondu
+                    oldActive = true;
+                }
+                looping = false;
+                fadePos = 0.0;
+                loopStart = t + (int64_t) std::llround (capture);
+                pendingG = G;
             }
 
-            if (! cloud && t >= captureEnd)
+            if (! looping && t >= loopStart && lastStep != std::numeric_limits<int64_t>::min())
             {
-                // frame enregistrée : la fenêtre figée est [fin - G, fin], le nuage démarre déjà en régime
-                cloud = true;
-                anchor = t;
-                cloudStart = t;
-                spectral = specMode;
-                if (spectral)
-                    startSpectral (G, tex, speed);
-                else
+                // la fenêtre figée finit ici : [t - G, t). La boucle démarre en phase 0, dont le
+                // raccord lit l'échantillon courant (= son direct) : aucune rupture.
+                looping = true;
+                oldActive = false;
+                startLoop (cur, (double) t - pendingG, pendingG, xf);
+            }
+            feed (cur);
+
+            float l, r;
+            if (looping)
+            {
+                loopSample (cur, l, r);
+                advance (cur);
+            }
+            else
+            {
+                // son direct (enregistrement de la frame), avec fondu depuis l'ancienne boucle
+                l = inL; r = inR;
+                if (oldActive)
                 {
-                    for (int k = 3; k >= 0; --k)
-                        spawn (G, tex, 0.0f, hop * k);
-                    spawnAcc = hop * (1.0 + 0.45 * tex * rng.bi());
+                    fadePos += 1.0;
+                    const float a = (float) juce::jmin (1.0, fadePos / xf);
+                    const float gIn = std::sin (0.5f * dsp::pi * a), gOld = std::cos (0.5f * dsp::pi * a);
+                    float ol, orr;
+                    loopSample (old, ol, orr);
+                    advance (old);
+                    l = inL * gIn + ol * gOld;
+                    r = inR * gIn + orr * gOld;
+                    if (a >= 1.0f) oldActive = false;
                 }
             }
 
-            const bool wantFrozen = cloud && phase < (double) hold;
-            wet = juce::jlimit (0.0f, 1.0f, wet + (wantFrozen ? wetStep : -wetStep));
-
-            if (cloud && spectral)
+            // filtres (coefficients lissés, recalculés tous les 16 échantillons)
+            if (filtCount-- <= 0)
             {
-                if (t >= nextFrame)
-                {
-                    spectralFrame (nextFrame, tex, speed);
-                    nextFrame += sH;
-                }
+                filtCount = 15;
+                updateFilters (s);
             }
-            else if (cloud)
+            for (int c = 0; c < 2; ++c)
             {
-                spawnAcc -= 1.0;
-                if (spawnAcc <= 0.0)
-                {
-                    spawn (G, tex, speed, 0.0);
-                    spawnAcc += hop * (1.0 + 0.45 * tex * rng.bi());
-                }
+                float& v = c == 0 ? l : r;
+                if (hpOn) v = hp[1].highpass (c, hp[0].highpass (c, v));
+                if (lpOn) v = lp[1].lowpass (c, lp[0].lowpass (c, v));
             }
 
-            float l = 0.0f, r = 0.0f;
-            for (auto& g : grains)
-            {
-                if (! g.active) continue;
-                const double ph = g.age / g.len;
-                const float w = 0.5f - 0.5f * std::cos (dsp::twoPi * (float) ph);
-                // fondu de bascule (puissance constante)
-                if (g.fadeDir != 0)
-                {
-                    g.fade -= wetStep;
-                    if (g.fade <= 0.0f) { g.active = false; continue; }
-                }
-                const float fg = g.fade >= 1.0f ? 1.0f : std::sin (0.5f * dsp::pi * g.fade);
-                const double pos = g.start + g.age;
-                l += buf.read (0, pos) * w * fg;
-                r += buf.read (1, pos) * w * fg;
-                g.age += 1.0;
-                if (g.age >= g.len) g.active = false;
-            }
-
-            {
-                // sortie du vocodeur (les traînes restent lisibles pendant le fondu de sortie)
-                const auto oi = (size_t) (t & olaMask);
-                l += ola[0][oi] * specNorm / norm;
-                r += ola[1][oi] * specNorm / norm;
-                ola[0][oi] = ola[1][oi] = 0.0f;
-            }
-
-            const float ew = std::sin (0.5f * dsp::pi * wet) * mix;
-            const float ed = std::cos (0.5f * dsp::pi * wet) + std::sin (0.5f * dsp::pi * wet) * (1.0f - mix);
-            L[i] = safety (inL * ed + l * norm * ew);
-            R[i] = safety (inR * ed + r * norm * ew);
+            L[i] = safety (l);
+            R[i] = safety (r);
             ++t;
+        }
+        for (auto& f : hp) f.sanitize();
+        for (auto& f : lp) f.sanitize();
+    }
+
+    /** Réponse du filtre (dB) à une fréquence, pour l'affichage. */
+    static float responseDb (float f, float hpHz, float lpHz, float reso, double sampleRate = 48000.0)
+    {
+        const double q1 = 0.5412, q2 = qFor (reso);
+        auto mag2 = [&] (double fc, double q, bool high)
+        {
+            // SVF analogique 2e ordre : |H|² pour s = j·f/fc
+            const double w = f / fc, w2 = w * w;
+            const double num = high ? w2 * w2 : 1.0;
+            const double den = (1.0 - w2) * (1.0 - w2) + w2 / (q * q);
+            return num / juce::jmax (1.0e-12, den);
+        };
+        double h = 1.0;
+        if (hpHz > 20.5f) h *= mag2 (hpHz, q1, true) * mag2 (hpHz, q2, true);
+        if (lpHz < 19500.0f && lpHz < sampleRate * 0.49) h *= mag2 (lpHz, q1, false) * mag2 (lpHz, q2, false);
+        return (float) (10.0 * std::log10 (juce::jmax (1.0e-12, h)));
+    }
+
+private:
+    /** Boucle figée, copiée hors du tampon circulaire (elle peut tenir aussi longtemps que le pas). */
+    struct Loop
+    {
+        std::vector<float> d[2];
+        int64_t base = 0;     // index absolu de d[.][0]
+        int64_t filled = 0;   // nombre d'échantillons copiés
+        int64_t needed = 0;
+        double start = 0, len = 1, phase = 0, xf = 1;
+
+        float at (int c, int64_t abs) const
+        {
+            const auto i = juce::jlimit ((int64_t) 0, juce::jmax ((int64_t) 0, filled - 1), abs - base);
+            return d[c][(size_t) i];
+        }
+        float read (int c, double pos) const
+        {
+            const auto i = (int64_t) std::floor (pos);
+            const float f = (float) (pos - (double) i);
+            const float xm1 = at (c, i - 1), x0 = at (c, i), x1 = at (c, i + 1), x2 = at (c, i + 2);
+            const float c1 = 0.5f * (x1 - xm1);
+            const float c2 = xm1 - 2.5f * x0 + 2.0f * x1 - 0.5f * x2;
+            const float c3 = 0.5f * (x2 - xm1) + 1.5f * (x0 - x1);
+            return ((c3 * f + c2) * f + c1) * f + x0;
+        }
+    };
+
+    /** Copie la fenêtre [start, start + len + xf] : la partie déjà enregistrée tout de suite,
+        la suite (le raccord) au fil des échantillons via feed(). */
+    void startLoop (Loop& lp_, double start, double len, double fade)
+    {
+        lp_.start = start; lp_.len = len; lp_.phase = 0.0; lp_.xf = fade;
+        lp_.base = (int64_t) std::floor (start) - 2;
+        lp_.needed = juce::jmin ((int64_t) lp_.d[0].size(), (int64_t) std::ceil (len + fade) + 6);
+        lp_.filled = 0;
+        while (lp_.filled < lp_.needed && lp_.base + lp_.filled <= t)
+        {
+            const auto abs = lp_.base + lp_.filled;
+            lp_.d[0][(size_t) lp_.filled] = buf.at (0, (int) abs);
+            lp_.d[1][(size_t) lp_.filled] = buf.at (1, (int) abs);
+            ++lp_.filled;
         }
     }
 
-    /** Pas courant (pour l'affichage). */
-    int64_t currentStep() const { return lastStep; }
-
-private:
-    struct Grain
+    void feed (Loop& lp_)
     {
-        bool active = false;
-        double start = 0, age = 0, len = 1;
-        float fade = 1.0f;
-        int fadeDir = 0;
-    };
+        if (! looping || lp_.filled >= lp_.needed || lp_.base + lp_.filled != t) return;
+        lp_.d[0][(size_t) lp_.filled] = buf.at (0, (int) t);
+        lp_.d[1][(size_t) lp_.filled] = buf.at (1, (int) t);
+        ++lp_.filled;
+    }
+
+    static double qFor (float reso) { return 1.3065 + (double) juce::jlimit (0.0f, 1.0f, reso) * 4.0; }
+
+    /** Échantillon de la boucle à sa phase courante (raccord fondu sur les xf premiers échantillons). */
+    void loopSample (const Loop& lp_, float& l, float& r) const
+    {
+        const double pos = lp_.start + lp_.phase;
+        l = lp_.read (0, pos);
+        r = lp_.read (1, pos);
+        if (lp_.phase < lp_.xf)
+        {
+            // au début de la boucle : on part de ce qui suivait la fenêtre (continuité avec la fin)
+            const float a = (float) (lp_.phase / lp_.xf);
+            const float w = 0.5f - 0.5f * std::cos (dsp::pi * a); // 0 -> 1
+            const float al = lp_.read (0, pos + lp_.len), ar = lp_.read (1, pos + lp_.len);
+            l = al + (l - al) * w;
+            r = ar + (r - ar) * w;
+        }
+    }
+
+    static void advance (Loop& lp_)
+    {
+        lp_.phase += 1.0;
+        if (lp_.phase >= lp_.len) lp_.phase -= lp_.len;
+    }
+
+    void updateFilters (const Settings& s)
+    {
+        const float hpT = juce::jlimit (20.0f, 20000.0f, s.hpHz);
+        const float lpT = juce::jlimit (20.0f, 20000.0f, s.lpHz);
+        // lissage exponentiel en log-fréquence (pas de zipper)
+        hpSm = std::exp (std::log (hpSm) + 0.15f * (std::log (hpT) - std::log (hpSm)));
+        lpSm = std::exp (std::log (lpSm) + 0.15f * (std::log (lpT) - std::log (lpSm)));
+        resoSm += 0.15f * (juce::jlimit (0.0f, 1.0f, s.reso) - resoSm);
+        hpOn = hpSm > 20.5f;
+        lpOn = lpSm < 19500.0f && lpSm < sr * 0.45;
+        const float q2 = (float) qFor (resoSm);
+        if (hpOn) { hp[0].set (sr, hpSm, 0.5412f); hp[1].set (sr, hpSm, q2); }
+        if (lpOn) { lp[0].set (sr, lpSm, 0.5412f); lp[1].set (sr, lpSm, q2); }
+    }
 
     static float safety (float x)
     {
@@ -204,182 +256,15 @@ private:
         return std::copysign (1.0f + dsp::fastTanh (a - 1.0f) * 0.5f, x); // plafond doux à ~1.5
     }
 
-    // ------------------------------------------------------------------ spectral
-    static float princarg (float x) { return x - dsp::twoPi * std::round (x / dsp::twoPi); }
-
-    /** Analyse : spectre de la frame [pos, pos + W) + fréquence instantanée par bin
-        (écart de phase avec la frame [pos - H, pos - H + W)). */
-    void analyse (int c, int64_t pos)
-    {
-        auto& C = ch[c];
-        const int half = sN / 2;
-        auto* fft = ffts[(size_t) sOrder].get();
-        // frame précédente : phases seulement
-        std::fill (fftBuf.begin(), fftBuf.begin() + 2 * sN, 0.0f);
-        for (int n = 0; n < sW; ++n) fftBuf[(size_t) n] = buf.at (c, (int) (pos - sH + n)) * win[(size_t) n];
-        fft->performRealOnlyForwardTransform (fftBuf.data(), true);
-        for (int k = 0; k <= half; ++k)
-            C.omega[(size_t) k] = std::atan2 (fftBuf[(size_t) (2 * k + 1)], fftBuf[(size_t) (2 * k)]);
-        // frame courante
-        std::fill (fftBuf.begin(), fftBuf.begin() + 2 * sN, 0.0f);
-        for (int n = 0; n < sW; ++n) fftBuf[(size_t) n] = buf.at (c, (int) (pos + n)) * win[(size_t) n];
-        fft->performRealOnlyForwardTransform (fftBuf.data(), true);
-        float maxMag = 0.0f;
-        for (int k = 0; k <= half; ++k)
-        {
-            const float re = fftBuf[(size_t) (2 * k)], im = fftBuf[(size_t) (2 * k + 1)];
-            const float m = std::sqrt (re * re + im * im);
-            const float phB = std::atan2 (im, re);
-            const float expected = dsp::twoPi * (float) k * (float) sH / (float) sN;
-            const float dev = princarg (phB - C.omega[(size_t) k] - expected);
-            C.omega[(size_t) k] = (dsp::twoPi * (float) k / (float) sN) + dev / (float) sH; // rad / échantillon
-            C.mag[(size_t) k] = m;
-            C.ph[(size_t) k] = phB;
-            maxMag = juce::jmax (maxMag, m);
-        }
-        // pics (maxima locaux sur ±2 bins) et région d'influence de chaque pic
-        const float thr = maxMag * 1.0e-4f;
-        int lastPeak = -1;
-        for (int k = 0; k <= half; ++k)
-        {
-            const float m = C.mag[(size_t) k];
-            bool peak = m > thr;
-            for (int d = -2; peak && d <= 2; ++d)
-            {
-                const int j = k + d;
-                if (d == 0 || j < 0 || j > half) continue;
-                if (C.mag[(size_t) j] > m) peak = false;
-            }
-            if (peak)
-            {
-                // les bins entre deux pics vont au plus proche
-                const int from = lastPeak < 0 ? 0 : (lastPeak + k) / 2 + 1;
-                for (int j = from; j <= k; ++j) C.peakOf[(size_t) j] = k;
-                lastPeak = k;
-            }
-            else if (lastPeak >= 0)
-                C.peakOf[(size_t) k] = lastPeak;
-            else
-                C.peakOf[(size_t) k] = k;
-        }
-    }
-
-    int64_t analysisPos (int64_t frameStart, float tex, float speed)
-    {
-        const double elapsed = (double) juce::jmax ((int64_t) 0, frameStart - cloudStart);
-        double pos = (double) (anchor - sW) + (double) speed * elapsed - (double) rng.uni() * tex * (double) sW;
-        // la frame analysée doit être entièrement écrite
-        pos = juce::jmin (pos, (double) (t - sW - 1));
-        return (int64_t) std::llround (pos);
-    }
-
-    /** Synthèse d'une frame démarrant à l'instant absolu frameStart (ajout dans le tampon OLA). */
-    void synth (int c, int64_t frameStart, bool first, float tex)
-    {
-        auto& C = ch[c];
-        const int half = sN / 2;
-        const float advance = (float) sH;
-        const float jitter = tex * tex * dsp::pi;
-        if (first)
-            for (int k = 0; k <= half; ++k) C.syn[(size_t) k] = C.ph[(size_t) k];
-        else
-        {
-            // les pics avancent à leur vraie fréquence, les autres bins suivent leur pic (verrouillage)
-            for (int k = 0; k <= half; ++k)
-                if (C.peakOf[(size_t) k] == k)
-                    C.syn[(size_t) k] = princarg (C.syn[(size_t) k] + C.omega[(size_t) k] * advance + jitter * rng.bi());
-            for (int k = 0; k <= half; ++k)
-            {
-                const int p = C.peakOf[(size_t) k];
-                if (p != k) C.syn[(size_t) k] = C.syn[(size_t) p] + (C.ph[(size_t) k] - C.ph[(size_t) p]);
-            }
-        }
-        for (int k = 0; k <= half; ++k)
-        {
-            const float m = C.mag[(size_t) k] * (1.0f + 0.5f * tex * rng.bi());
-            fftBuf[(size_t) (2 * k)] = m * std::cos (C.syn[(size_t) k]);
-            fftBuf[(size_t) (2 * k + 1)] = m * std::sin (C.syn[(size_t) k]);
-        }
-        std::fill (fftBuf.begin() + 2 * (half + 1), fftBuf.begin() + 2 * sN, 0.0f);
-        ffts[(size_t) sOrder]->performRealOnlyInverseTransform (fftBuf.data());
-        auto& o = ola[c];
-        for (int n = 0; n < sW; ++n)
-        {
-            const int64_t idx = frameStart + n;
-            if (idx < cloudStart) continue; // le passé (frames pré-calculées) n'est jamais relu
-            o[(size_t) (idx & olaMask)] += fftBuf[(size_t) n] * win[(size_t) n];
-        }
-    }
-
-    void startSpectral (double G, float tex, float speed)
-    {
-        sW = juce::jlimit (64, maxW, (int) std::lround (G)) & ~3;
-        sH = sW / 4;
-        sOrder = juce::jlimit (5, maxOrder, (int) std::ceil (std::log2 ((double) sW)));
-        sN = 1 << sOrder;
-        for (int n = 0; n < sW; ++n) win[(size_t) n] = 0.5f - 0.5f * std::cos (dsp::twoPi * (float) n / (float) sW);
-        // analyse x synthèse Hann à recouvrement 4 : somme = 1.5
-        specNorm = 1.0f / 1.5f;
-        for (auto& o : ola) std::fill (o.begin(), o.end(), 0.0f);
-        // 4 frames pré-calculées : le gel démarre déjà en régime (pas de montée)
-        for (int k = 3; k >= 0; --k)
-            spectralFrame (cloudStart - (int64_t) k * sH, tex, speed, k == 3);
-        nextFrame = cloudStart + sH;
-    }
-
-    void spectralFrame (int64_t frameStart, float tex, float speed, bool first = false)
-    {
-        // gel pur (texture 0, vitesse 0) : une seule analyse suffit
-        const bool reanalyse = first || tex > 0.0f || speed > 0.0f;
-        if (reanalyse)
-        {
-            const auto pos = analysisPos (frameStart, tex, speed);
-            for (int c = 0; c < 2; ++c) analyse (c, pos);
-        }
-        for (int c = 0; c < 2; ++c) synth (c, frameStart, first, tex);
-    }
-
-    // ------------------------------------------------------------------ grains
-    void spawn (double G, float tex, float speed, double preAge)
-    {
-        for (auto& g : grains)
-        {
-            if (g.active) continue;
-            const double elapsed = (double) (t - cloudStart);
-            // fenêtre figée : les G derniers échantillons avant le gel, un peu plus loin si texture
-            const double back = G + (double) rng.uni() * tex * 1.5 * G;
-            g.active = true;
-            g.len = G;
-            g.age = preAge;
-            // les grains pré-vieillis lisent la même fenêtre, simplement déjà entamée
-            g.start = (double) anchor - back + (double) speed * elapsed;
-            // garde-fou : la lecture (Hermite, +2) ne doit jamais dépasser la tête d'écriture
-            g.start = juce::jmin (g.start, (double) t - preAge - 3.0);
-            g.fade = 1.0f;
-            g.fadeDir = 0;
-            return;
-        }
-    }
-
     dsp::RingBuffer buf;
-    std::array<Grain, numGrains> grains;
-    dsp::Rng rng;
-    double sr = 44100.0, xfLen = 132.0;
-    int64_t t = 0, anchor = 0, tickTime = 0, lastStep = 0, captureEnd = 0, cloudStart = 0;
-    double spawnAcc = 0.0;
-    float wet = 0.0f;
-    bool cloud = false;
+    double sr = 44100.0, maxXf = 132.0, xf = 64.0, fadePos = 0.0, pendingG = 1102.5;
+    int64_t t = 0, lastStep = 0, loopStart = 0;
+    Loop cur, old;
+    bool looping = false, oldActive = false;
 
-    // vocodeur
-    struct Chan { std::vector<float> mag, ph, omega, syn; std::vector<int> peakOf; };
-    std::array<std::unique_ptr<juce::dsp::FFT>, maxOrder + 1> ffts;
-    std::vector<float> fftBuf, win;
-    std::array<Chan, 2> ch;
-    std::array<std::vector<float>, 2> ola;
-    int olaSize = 0;
-    int64_t olaMask = 0, nextFrame = 0;
-    int sW = 1024, sH = 256, sN = 1024, sOrder = 10;
-    float specNorm = 1.0f;
-    bool spectral = false;
+    dsp::SVF hp[2], lp[2];
+    float hpSm = 20.0f, lpSm = 20000.0f, resoSm = 0.0f;
+    bool hpOn = false, lpOn = false;
+    int filtCount = 0;
 };
 } // namespace idg

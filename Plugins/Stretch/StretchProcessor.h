@@ -43,10 +43,14 @@ public:
     std::atomic<float> uiLevel { 0.0f };
     std::atomic<float> uiCapture { 0.25f }; // part du pas jouée avant le gel
 
+    // copie de la sortie (mono) pour le spectre de l'interface : écrite par l'audio, lue par l'UI
+    static constexpr int scopeSize = 4096;
+    std::array<float, scopeSize> scope {};
+    std::atomic<int> scopeWrite { 0 };
+
 private:
     StretchEngine engine;
-    std::atomic<float>* pRate = nullptr, *pGrain = nullptr, *pTexture = nullptr,
-                      *pSpeed = nullptr, *pHold = nullptr, *pMix = nullptr, *pMode = nullptr;
+    std::atomic<float>* pRate = nullptr, *pGrain = nullptr, *pHp = nullptr, *pLp = nullptr, *pReso = nullptr;
     double sr = 44100.0;
     double freeBeat = 0.0; // horloge interne quand le transport est arrêté
 };

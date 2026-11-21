@@ -15,26 +15,31 @@ double StretchProcessor::rateBeats (int i)
     return b[juce::jlimit (0, 9, i)];
 }
 
+static juce::String hzText (float v)
+{
+    return v >= 1000.0f ? juce::String (v / 1000.0f, v >= 10000.0f ? 1 : 2) + " kHz"
+                        : juce::String (v, v < 10.0f ? 1 : 0) + " Hz";
+}
+
 static juce::AudioProcessorValueTreeState::ParameterLayout makeLayout()
 {
     using namespace juce;
     AudioProcessorValueTreeState::ParameterLayout l;
+    auto hz = AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int) { return hzText (v); });
     auto pct = AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int) { return String (roundToInt (v * 100.0f)) + " %"; });
-    auto ms = AudioParameterFloatAttributes().withStringFromValueFunction ([] (float v, int)
-              { return v >= 1000.0f ? String (v / 1000.0f, 2) + " s" : String (v, v < 10.0f ? 1 : 0) + " ms"; });
+    auto logRange = [] (float lo, float hi)
+    {
+        return NormalisableRange<float> (lo, hi,
+            [] (float a, float b, float v) { return a * std::pow (b / a, v); },
+            [] (float a, float b, float v) { return std::log (v / a) / std::log (b / a); });
+    };
 
-    l.add (std::make_unique<AudioParameterChoice> (ParameterID { "rate", 1 }, "Rate", StretchProcessor::rateNames(), 4));
-    l.add (std::make_unique<AudioParameterChoice> (ParameterID { "mode", 1 }, "Moteur", StringArray { "Spectral", "Grains" }, 0));
-    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "grain", 1 }, "Grain",
-                                                  NormalisableRange<float> (2.0f, 1000.0f, 0.0f, 0.35f), 120.0f, ms));
-    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "texture", 1 }, "Texture",
-                                                  NormalisableRange<float> (0.0f, 1.0f), 0.3f, pct));
-    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "speed", 1 }, "Vitesse",
-                                                  NormalisableRange<float> (0.0f, 1.0f, 0.0f, 0.5f), 0.0f, pct));
-    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "hold", 1 }, "Hold",
-                                                  NormalisableRange<float> (0.05f, 1.0f), 1.0f, pct));
-    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "mix", 1 }, "Mix",
-                                                  NormalisableRange<float> (0.0f, 1.0f), 1.0f, pct));
+    // v3 : identifiants neufs (les réglages des versions précédentes ne s'appliquent plus)
+    l.add (std::make_unique<AudioParameterChoice> (ParameterID { "rate", 1 }, "Rate", StretchProcessor::rateNames(), 2));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "grain_hz", 1 }, "Grain", logRange (1.0f, 500.0f), 40.0f, hz));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "hp", 1 }, "Coupe-bas", logRange (20.0f, 20000.0f), 20.0f, hz));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "lp", 1 }, "Coupe-haut", logRange (20.0f, 20000.0f), 20000.0f, hz));
+    l.add (std::make_unique<AudioParameterFloat> (ParameterID { "reso", 1 }, "Resonance", NormalisableRange<float> (0.0f, 1.0f), 0.0f, pct));
     return l;
 }
 
@@ -44,12 +49,10 @@ StretchProcessor::StretchProcessor()
       apvts (*this, nullptr, "IDGemsStretch", makeLayout())
 {
     pRate = apvts.getRawParameterValue ("rate");
-    pGrain = apvts.getRawParameterValue ("grain");
-    pTexture = apvts.getRawParameterValue ("texture");
-    pSpeed = apvts.getRawParameterValue ("speed");
-    pHold = apvts.getRawParameterValue ("hold");
-    pMix = apvts.getRawParameterValue ("mix");
-    pMode = apvts.getRawParameterValue ("mode");
+    pGrain = apvts.getRawParameterValue ("grain_hz");
+    pHp = apvts.getRawParameterValue ("hp");
+    pLp = apvts.getRawParameterValue ("lp");
+    pReso = apvts.getRawParameterValue ("reso");
 }
 
 bool StretchProcessor::isBusesLayoutSupported (const BusesLayout& l) const
@@ -88,12 +91,10 @@ void StretchProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
 
     StretchEngine::Settings s;
     s.rateBeats = rateBeats ((int) pRate->load());
-    s.grainMs = pGrain->load();
-    s.texture = pTexture->load();
-    s.speed = pSpeed->load();
-    s.hold = pHold->load();
-    s.mix = pMix->load();
-    s.mode = (int) pMode->load();
+    s.grainHz = pGrain->load();
+    s.hpHz = pHp->load();
+    s.lpHz = pLp->load();
+    s.reso = pReso->load();
 
     float* L = buffer.getWritePointer (0);
     float* R = numCh > 1 ? buffer.getWritePointer (1) : L;
@@ -116,8 +117,17 @@ void StretchProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     uiPhase = (float) (stepPos - std::floor (stepPos));
     uiStep = (int) ((int64_t) std::floor (stepPos) & 0x7fffffff);
     uiLevel = buffer.getMagnitude (0, n);
+    {
+        int w = scopeWrite.load (std::memory_order_relaxed);
+        for (int i = 0; i < n; ++i)
+        {
+            scope[(size_t) w] = 0.5f * (L[i] + R[i]);
+            w = (w + 1) & (scopeSize - 1);
+        }
+        scopeWrite.store (w, std::memory_order_release);
+    }
     const double stepLen = s.rateBeats * spb;
-    uiCapture = (float) (juce::jmin ((double) s.grainMs * 0.001 * sr, stepLen * 0.5) / stepLen);
+    uiCapture = (float) (juce::jmin (sr / juce::jmax (1.0, (double) s.grainHz), stepLen * 0.5) / stepLen);
 }
 
 juce::AudioProcessorEditor* StretchProcessor::createEditor() { return new StretchEditor (*this); }
