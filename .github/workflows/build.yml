@@ -40,7 +40,8 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
           Copy-Item -Recurse "build\IDGems_artefacts\Release\VST3\IDGems.vst3" dist\
-          Copy-Item -Recurse "build\IDGemsStretch_artefacts\Release\VST3\IDGems Stretch.vst3" dist\
+          New-Item -ItemType Directory -Force dist-stretch | Out-Null
+          Copy-Item -Recurse "build\IDGemsStretch_artefacts\Release\VST3\IDGems Stretch.vst3" dist-stretch\
           Copy-Item docs\INSTALLATION.md dist\ -ErrorAction SilentlyContinue
 
       - name: Publier le VST3 (à télécharger)
@@ -48,4 +49,11 @@ jobs:
         with:
           name: IDGems-VST3-Windows
           path: dist
+          retention-days: 30
+
+      - name: Publier le VST3 Stretch seul (à télécharger)
+        uses: actions/upload-artifact@v4
+        with:
+          name: IDGems-Stretch-VST3-Windows
+          path: dist-stretch
           retention-days: 30
