@@ -44,6 +44,23 @@ réglages validés, ce qui reste à faire).
 - Morph XY entre snapshots : pondération en 1/d² (il trouvait que ça ne morphait pas).
 - La taille de la fenêtre doit survivre à la fermeture/réouverture et à la sauvegarde du projet.
 
+## Effet n° 1 : Beat Repeat (session du 21/11/2026, en cours d'écoute)
+- Modèle : le module **Loop d'Infiltrator** (capture d'écran fournie : Speed, Tempo, Smooth, Glide,
+  sens → / ↔ / ←, Free/Sync, Gain, Mix). Remplacera **Stutter + Beat Repeat** du rack une fois validé.
+- Analyse de sa boucle de référence (Loop, Tempo « 1.5 » = recapture toutes les demi-mesures, Speed
+  jouée à la main) : boucles de 83 / 31,25 / 11,45 / 9,64 / 20,84 ms → sous ~30 ms la répétition
+  devient une note (buzz granulaire). C'est LE son visé.
+- Code : moteur `Source/Effects/LoopRepeat.h` (autonome, sans MParam), plugin séparé
+  `Source/Plugins/BeatRepeat/` (VST3 « IDGems Beat Repeat », code Idbr), labo `Tests/BeatRepeatLab.cpp`
+  (`BeatRepeatLab` = tests ; `--render dossier` = boucle sèche de synthèse + rendus WAV ;
+  `--snapshot x.png`). CI : compilé, testé, pluginval, livré dans le même artefact.
+- Réglages : Speed (1 mesure → ~1 ms, log ; libre ou aimanté « Snap » sur droites/triolets/pointées),
+  Tempo (Hold, 1/32 … 4 mesures ; ou ms en mode libre), Smooth (fondu sin² à chaque tour), Glide,
+  Rampe (±3 octaves de vitesse sur un pas de tempo), sens, REPEAT (on/off automatisable), Mix 100 %, Gain.
+- Il n'a pas voulu fournir de boucle sèche : les rendus utilisent une boucle de synthèse (120 BPM).
+- **À faire** : ses retours d'écoute ; les deux petits potards de gauche du Loop d'Infiltrator
+  (modulation de la Speed : enveloppe + LFO/forme) ne sont pas encore reproduits, attendre sa capture.
+
 ## Direction artistique (DA)
 - Basée sur l'univers **Altered Brother** (il autorise à la reprendre librement, c'est son projet).
   Références : artwork « Process Overload » (roche noire fissurée, fissures orange incandescentes,

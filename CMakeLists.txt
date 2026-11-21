@@ -104,6 +104,40 @@ target_link_libraries(IDGems
            juce::juce_recommended_warning_flags)
 
 # ---------------------------------------------------------------------------
+# Plugins d'effet séparés (un effet = un petit VST3, pour les réglages à l'oreille)
+# ---------------------------------------------------------------------------
+juce_add_plugin(IDGemsBeatRepeat
+    COMPANY_NAME                "IDGems"
+    PLUGIN_MANUFACTURER_CODE    Idgm
+    PLUGIN_CODE                 Idbr
+    PRODUCT_NAME                "IDGems Beat Repeat"
+    FORMATS                     VST3
+    IS_SYNTH                    FALSE
+    NEEDS_MIDI_INPUT            FALSE
+    NEEDS_MIDI_OUTPUT           FALSE
+    IS_MIDI_EFFECT              FALSE
+    VST3_CATEGORIES             Fx Delay
+    COPY_PLUGIN_AFTER_BUILD     ${IDGEMS_COPY_AFTER_BUILD})
+
+set(BEATREPEAT_SOURCES
+    Source/Plugins/BeatRepeat/BeatRepeatProcessor.cpp
+    Source/Plugins/BeatRepeat/BeatRepeatEditor.cpp
+    Source/UI/LookAndFeel.cpp
+    Source/UI/Theme.cpp)
+
+target_sources(IDGemsBeatRepeat PRIVATE ${BEATREPEAT_SOURCES})
+target_include_directories(IDGemsBeatRepeat PRIVATE Source)
+target_compile_definitions(IDGemsBeatRepeat PUBLIC ${IDGEMS_DEFINITIONS})
+if(MSVC)
+    target_compile_options(IDGemsBeatRepeat PRIVATE /utf-8)
+endif()
+target_link_libraries(IDGemsBeatRepeat
+    PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
+    PUBLIC juce::juce_recommended_config_flags
+           juce::juce_recommended_lto_flags
+           juce::juce_recommended_warning_flags)
+
+# ---------------------------------------------------------------------------
 # Tests de stabilité (exécutable console) : NaN, clics, plafond du limiteur...
 # ---------------------------------------------------------------------------
 if(IDGEMS_BUILD_TESTS)
@@ -115,6 +149,17 @@ if(IDGEMS_BUILD_TESTS)
         target_compile_options(IDGemsTests PRIVATE /utf-8)
     endif()
     target_link_libraries(IDGemsTests
+        PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
+        PUBLIC juce::juce_recommended_config_flags)
+    # Labo du Beat Repeat : tests + rendus WAV + capture d'interface
+    juce_add_console_app(BeatRepeatLab PRODUCT_NAME "BeatRepeatLab")
+    target_sources(BeatRepeatLab PRIVATE Tests/BeatRepeatLab.cpp ${BEATREPEAT_SOURCES})
+    target_include_directories(BeatRepeatLab PRIVATE Source)
+    target_compile_definitions(BeatRepeatLab PRIVATE ${IDGEMS_DEFINITIONS} IDGEMS_TESTS=1 JUCE_STANDALONE_APPLICATION=0)
+    if(MSVC)
+        target_compile_options(BeatRepeatLab PRIVATE /utf-8)
+    endif()
+    target_link_libraries(BeatRepeatLab
         PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
         PUBLIC juce::juce_recommended_config_flags)
 endif()
