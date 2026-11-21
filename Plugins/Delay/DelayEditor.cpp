@@ -122,6 +122,13 @@ void EchoView::paint (juce::Graphics& g)
         }
     }
 
+    if (proc.apvts.getRawParameterValue ("bypass")->load() > 0.5f)
+    {
+        g.setColour (juce::Colours::black.withAlpha (0.6f));
+        g.fillRect (b);
+        Theme::cutText (g, "BYPASS", b, 22.0f, juce::Colour (0xffff2d55), juce::Justification::centred, 0.4f, true);
+    }
+
     // lecture du temps
     juce::String timeTxt = s.sync ? GlitchDelay::divisionText (s.note, s.feel) + "  ·  " + msString (t * 1000.0)
                                   : "FREE  ·  " + msString (t * 1000.0);
@@ -147,13 +154,13 @@ DelayEditor::Content::Content (DelayProcessor& p)
       note (p.apvts, "note", space, "Division", IDG_T ("Division rythmique : de 1/128 à 1/4.")),
       time (p.apvts, "time", space, "Temps", IDG_T ("Temps libre : 0,3 ms (effet de filtre en peigne) à 500 ms.")),
       feedback (p.apvts, "feedback", hot, "Feedback", IDG_T ("Réinjection. Au-delà de 100 % la boucle s'emballe et sature (le random reste sous 100 %).")),
-      lowcut (p.apvts, "lowcut", space, "Coupe-bas", IDG_T ("Coupe-bas dans la boucle : chaque répétition perd un peu plus de grave.")),
-      highcut (p.apvts, "highcut", space, "Coupe-haut", IDG_T ("Coupe-haut dans la boucle : chaque répétition s'assombrit un peu plus.")),
       offset (p.apvts, "offset", space, IDG_T ("DÉCALAGE"), IDG_T ("Décalage stéréo : retarde un côté de quelques ms (élargit l'image).")),
-      mix (p.apvts, "mix", Theme::text, "Mix", IDG_T ("Dosage sec / traité. Jamais touché par le random."))
+      mix (p.apvts, "mix", Theme::text, "Mix", IDG_T ("Dosage sec / traité. Jamais touché par le random.")),
+      filter (p.apvts, "lowcut", "highcut", space),
+      bypass (p.apvts, "bypass", "BYPASS", juce::Colour (0xffff2d55), IDG_T ("Coupe le delay (le son sec passe). Relié au bouton on/off d'Ableton."))
 {
     for (juce::Component* c : std::initializer_list<juce::Component*> { &echoes, &sync, &feel, &mode, &note, &time, &feedback,
-                                                                       &lowcut, &highcut, &offset, &mix, &random, &undo })
+                                                                       &filter, &offset, &mix, &random, &undo, &bypass })
         addAndMakeVisible (c);
     note.setBig (true); time.setBig (true); feedback.setBig (true);
     note.valueText = [this]
@@ -182,14 +189,15 @@ void DelayEditor::Content::resized()
 {
     random.setBounds (baseW - 150, 16, 130, 34);
     undo.setBounds (baseW - 270, 16, 110, 34);
-    echoes.setBounds (20, 66, baseW - 40, 130);
+    bypass.setBounds (baseW - 390, 16, 110, 34);
+    echoes.setBounds (20, 66, baseW - 40, 124);
 
-    const float top = 212.0f, h = (float) baseH - top - 16.0f;
-    pTime = { 20, top, 250, h };
-    pFb = { 280, top, 130, h };
-    pFilter = { 420, top, 200, h };
-    pStereo = { 630, top, 150, h };
-    pMix = { 790, top, 70, h };
+    const float top = 202.0f, h = (float) baseH - top - 16.0f;
+    pTime = { 20, top, 240, h };
+    pFb = { 270, top, 120, h };
+    pFilter = { 400, top, 250, h };
+    pStereo = { 660, top, 150, h };
+    pMix = { 820, top, 80, h };
     auto inner = [] (juce::Rectangle<float> r) { return r.reduced (10.0f).withTrimmedTop (16.0f).toNearestInt(); };
 
     auto t = inner (pTime);
@@ -199,14 +207,12 @@ void DelayEditor::Content::resized()
     note.setBounds (t.withSizeKeepingCentre (150, t.getHeight()));
     time.setBounds (note.getBounds());
 
-    feedback.setBounds (inner (pFb).withTrimmedTop (24).withTrimmedBottom (24));
-    auto f = inner (pFilter).withTrimmedTop (24).withTrimmedBottom (24);
-    lowcut.setBounds (f.removeFromLeft (f.getWidth() / 2));
-    highcut.setBounds (f);
+    feedback.setBounds (inner (pFb).withTrimmedTop (30).withTrimmedBottom (30));
+    filter.setBounds (inner (pFilter).withTrimmedTop (4));
     auto st = inner (pStereo);
     mode.setBounds (st.removeFromTop (24));
     offset.setBounds (st.withTrimmedTop (16).withTrimmedBottom (8));
-    mix.setBounds (inner (pMix).withTrimmedTop (24).withTrimmedBottom (24));
+    mix.setBounds (inner (pMix).withTrimmedTop (40).withTrimmedBottom (40));
 }
 
 void DelayEditor::Content::paint (juce::Graphics& g)
@@ -228,7 +234,7 @@ void DelayEditor::Content::paint (juce::Graphics& g)
     panel (pTime, "Temps", space);
     panel (pFb, "Feedback", hot);
     panel (pFilter, "Filtre", space);
-    panel (pStereo, IDG_T ("Stéréo"), space);
+    panel (pStereo, IDG_T ("STÉRÉO"), space);
     panel (pMix, "Mix", Theme::text);
 }
 
@@ -276,7 +282,7 @@ void DelayEditor::timerCallback()
 {
     content->refresh();
     content->echoes.tick();
-    for (auto* k : { &content->note, &content->time, &content->feedback, &content->lowcut, &content->highcut, &content->offset, &content->mix })
+    for (auto* k : { &content->note, &content->time, &content->feedback, &content->offset, &content->mix })
         k->tick();
 }
 } // namespace idg

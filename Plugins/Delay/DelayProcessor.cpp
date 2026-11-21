@@ -62,6 +62,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout DelayProcessor::createLayout
                                   attrF (hzText, [] (const juce::String& t) { return numValue (t); })));
     l.add (std::make_unique<APF> (juce::ParameterID { "mix", 1 }, "Mix", juce::NormalisableRange<float> (0.0f, 1.0f), 0.5f,
                                   attrF (pctText, pctValue)));
+    // bypass : coupe le signal traité en douceur (le sec reste, la latence aussi) ; relié au bypass de l'hôte
+    l.add (std::make_unique<APB> (juce::ParameterID { "bypass", 1 }, "Bypass", false));
     return l;
 }
 
@@ -80,6 +82,7 @@ DelayProcessor::DelayProcessor()
     pLow = apvts.getRawParameterValue ("lowcut");
     pHigh = apvts.getRawParameterValue ("highcut");
     pMix = apvts.getRawParameterValue ("mix");
+    pBypass = apvts.getRawParameterValue ("bypass");
 }
 
 bool DelayProcessor::isBusesLayoutSupported (const BusesLayout& l) const
@@ -130,9 +133,10 @@ void DelayProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiB
     if (R != nullptr && nIn == 1) buffer.copyFrom (1, 0, buffer, 0, 0, n);
     for (int c = nIn; c < nOut; ++c) if (c > 1) buffer.clear (c, 0, n);
 
-    const auto s = currentSettings();
+    auto s = currentSettings();
+    if (pBypass->load() > 0.5f) s.mix = 0.0f;   // le delay lisse le mix (~30 ms) : pas de clic
     OutputChain::Settings os;
-    os.hpFreq = 5.0f; os.monoOn = false; os.softClip = false; os.ceilingDb = -0.3f; os.releaseMs = 60.0f;
+    os.hpFreq = 5.0f; os.monoOn = false; os.softClip = false; os.dcProtect = false; os.ceilingDb = -0.3f; os.releaseMs = 60.0f;
 
     float tmpR[32];
     float pk = 0.0f;
@@ -202,6 +206,7 @@ bool DelayProcessor::undoRandom()
     auto params = getParameters();
     for (int i = 0; i < params.size() && i < (int) snap.size(); ++i)
     {
+        if (params[i] == getBypassParameter()) continue; // RETOUR ne touche pas au bypass
         params[i]->beginChangeGesture();
         params[i]->setValueNotifyingHost (snap[(size_t) i]);
         params[i]->endChangeGesture();

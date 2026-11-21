@@ -251,6 +251,37 @@ int main (int argc, char** argv)
         check (std::abs (b.proc.editorScale.load() - 1.3f) < 1.0e-3f, "taille de fenêtre non restaurée");
     }
 
+    // 7b. Bypass : le sec ressort intact (latence comprise), sans clic, et RETOUR n'y touche pas
+    {
+        std::cout << "7b. Bypass..." << std::endl;
+        Harness h;
+        set (h.proc, "feedback", 0.8f);
+        set (h.proc, "mix", 0.7f);
+        const int n = (int) h.sr * 2;
+        std::vector<float> L ((size_t) n), R, src;
+        for (int i = 0; i < n; ++i) L[(size_t) i] = 0.3f * std::sin (2.0f * dsp::pi * 220.0f * (float) i / (float) h.sr);
+        R = L; src = L;
+        juce::MidiBuffer midi;
+        float maxJump = 0, prev = 0;
+        for (int i = 0; i < n; i += h.block)
+        {
+            if (i == h.block * 50) set (h.proc, "bypass", 1.0f);
+            float* chans[2] { L.data() + i, R.data() + i };
+            juce::AudioBuffer<float> b (chans, 2, h.block);
+            h.proc.processBlock (b, midi);
+            for (int k = 0; k < h.block; ++k) { if (i + k > 2000) maxJump = juce::jmax (maxJump, std::abs (L[(size_t) (i + k)] - prev)); prev = L[(size_t) (i + k)]; }
+        }
+        const int lat = h.proc.getLatencySamples();
+        float err = 0;
+        for (int i = n - 4800; i < n; ++i) err = juce::jmax (err, std::abs (L[(size_t) i] - src[(size_t) (i - lat)]));
+        check (err < 1.0e-3f, "bypass : le sec n'est pas intact (" + juce::String (err) + ")");
+        check (maxJump < 0.08f, "bypass : clic (" + juce::String (maxJump) + ")");
+        juce::Random rng (2);
+        h.proc.randomize (rng);
+        h.proc.undoRandom();
+        check (h.proc.apvts.getRawParameterValue ("bypass")->load() > 0.5f, "RETOUR a modifié le bypass");
+    }
+
     // 8. CPU
     {
         Harness h;

@@ -69,7 +69,14 @@ lowcut, highcut, throw. Random du rack : feel plafonné à « Pointé » (rmax 0
 pingpong, wow) ne sont plus reconnus. Capture du rack avec un effet affiché :
 `IDGemsTests --snapshot capture.png 118` (100 + numéro de l'effet).
 Outil : `IDGemsDelayTests --render-one source.wav sortie.wav sync=0 time=43.2 mode=1 feedback=0.9 ...`
-Reste à faire : son essai dans Ableton (plugin solo et rack). Prochain module : à lui de choisir.
+Retours du 21/11 (après essai) : aime la couleur qui vire au rouge avec le feedback, l'alerte
+« EMBALLEMENT » et le random. Demandé et fait : **bouton BYPASS** (relié au bypass de l'hôte, le sec
+ressort intact, RETOUR n'y touche pas), **filtre graphique** (courbe + poignées à glisser, courbe pâle
+= 4 rebonds) à la place des potards coupe-bas / coupe-haut, **potards ronds** raccords avec IDGems
+Beat Repeat (branche d'une autre session : corps « roche noire » + reflet, libellé tranché dessous).
+Le sec du module solo ne passe plus par le passe-haut de sécurité (`OutputChain::Settings::dcProtect`).
+Reste à faire : son essai de cette version. Prochain module : à lui de choisir.
+À noter : le rack IDGems a encore des potards octogonaux (Knob.cpp) — à harmoniser s'il le demande.
 
 ## Décisions et retours déjà actés
 - **Mix des effets à 100 % par défaut et jamais randomisé** (« un effet à 20 %, c'est dégueulasse,

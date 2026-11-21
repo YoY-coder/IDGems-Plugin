@@ -26,7 +26,7 @@ public:
     void paint (juce::Graphics&) override {}
     void resized() override;
 
-    static constexpr int baseW = 880, baseH = 450;
+    static constexpr int baseW = 920, baseH = 470;
 
 private:
     struct Content : public juce::Component
@@ -40,7 +40,9 @@ private:
         juce::Image bg;
         EchoView echoes;
         ui::solo::ChoiceButtons sync, feel, mode;
-        ui::solo::NeonKnob note, time, feedback, lowcut, highcut, offset, mix;
+        ui::solo::NeonKnob note, time, feedback, offset, mix;
+        ui::solo::FilterGraph filter;
+        ui::solo::ToggleParam bypass;
         ui::solo::FlatButton random { "RANDOM", ui::Theme::accent }, undo { IDG_T ("◀ RETOUR"), ui::Theme::blue };
         juce::Random rng;
         juce::Rectangle<float> pTime, pFb, pFilter, pStereo, pMix;

@@ -17,6 +17,7 @@ public:
     using juce::AudioProcessor::processBlock;
 
     juce::AudioProcessorEditor* createEditor() override;
+    juce::AudioProcessorParameter* getBypassParameter() const override { return apvts.getParameter ("bypass"); }
     bool hasEditor() const override { return true; }
     const juce::String getName() const override { return "IDGems Delay"; }
     bool acceptsMidi() const override { return false; }
@@ -55,7 +56,8 @@ private:
     std::vector<std::vector<float>> history;   // valeurs normalisées avant chaque random
 
     std::atomic<float>* pSync = nullptr, * pNote = nullptr, * pFeel = nullptr, * pTime = nullptr, * pFb = nullptr,
-                      * pMode = nullptr, * pOffset = nullptr, * pLow = nullptr, * pHigh = nullptr, * pMix = nullptr;
+                      * pMode = nullptr, * pOffset = nullptr, * pLow = nullptr, * pHigh = nullptr, * pMix = nullptr,
+                      * pBypass = nullptr;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (DelayProcessor)
 };

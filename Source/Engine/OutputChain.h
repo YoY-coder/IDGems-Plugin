@@ -27,6 +27,7 @@ public:
         float outGainDb = 0, clipDriveDb = 0, ceilingDb = -0.3f, releaseMs = 80;
         bool zeroLatency = false;
         bool softClip = true;      // false : limiteur seul (modules solo, sec intact)
+        bool dcProtect = true;     // false : pas de passe-haut / anti-DC (le sec reste bit-exact)
     };
 
     void prepare (double sampleRate)
@@ -84,7 +85,7 @@ public:
         {
             float v[2] { L[i], R[i] };
             // 1. passe-haut anti-sub + anti-DC
-            for (int k = 0; k < 2; ++k) v[k] = dc.process (k, hp.highpass (k, v[k]));
+            if (s.dcProtect) for (int k = 0; k < 2; ++k) v[k] = dc.process (k, hp.highpass (k, v[k]));
             // 2. grave en mono
             if (s.monoOn)
             {

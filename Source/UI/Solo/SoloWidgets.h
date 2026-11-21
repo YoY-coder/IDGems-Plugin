@@ -4,7 +4,7 @@
 namespace idg::ui::solo
 {
 /** Potard néon (même rendu que le rack IDGems) lié directement à un paramètre de l'APVTS.
-    Libellé au-dessus, valeur en dessous (toujours visible). Double-clic : valeur par défaut. */
+    Corps rond (raccord avec IDGems Beat Repeat), libellé tranché + valeur dessous. Double-clic : valeur par défaut. */
 class NeonKnob : public juce::Slider
 {
 public:
@@ -73,6 +73,55 @@ public:
 private:
     juce::Colour colour;
     bool over = false, down = false;
+};
+
+/** Interrupteur lié à un paramètre Bool (ex. BYPASS). */
+class ToggleParam : public juce::Component, public juce::SettableTooltipClient
+{
+public:
+    ToggleParam (juce::AudioProcessorValueTreeState& s, const juce::String& paramId, const juce::String& text,
+                 juce::Colour colour, const juce::String& help = {});
+    void paint (juce::Graphics&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+    void mouseEnter (const juce::MouseEvent&) override { over = true; repaint(); }
+    void mouseExit (const juce::MouseEvent&) override { over = false; repaint(); }
+    bool isOn() const { return on; }
+    std::function<void()> onChange;
+
+private:
+    std::unique_ptr<juce::ParameterAttachment> att;
+    juce::String text;
+    juce::Colour colour;
+    bool on = false, over = false;
+};
+
+/** Filtre graphique : courbe coupe-bas + coupe-haut (12 dB/oct), poignées à glisser.
+    Courbe pâle = couleur après 4 passages (le filtre est dans la boucle du delay). */
+class FilterGraph : public juce::Component, public juce::SettableTooltipClient
+{
+public:
+    FilterGraph (juce::AudioProcessorValueTreeState& s, const juce::String& lowId, const juce::String& highId, juce::Colour colour);
+    void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
+    void mouseDrag (const juce::MouseEvent&) override;
+    void mouseUp (const juce::MouseEvent&) override;
+    void mouseDoubleClick (const juce::MouseEvent&) override;
+    void mouseMove (const juce::MouseEvent&) override;
+    void mouseExit (const juce::MouseEvent&) override { hoverHandle = -1; repaint(); }
+
+private:
+    juce::Rectangle<float> plotArea() const;
+    float xOfHz (float hz) const;
+    float hzOfX (float x) const;
+    float value (int k) const;
+    float responseDb (float hz) const;
+    int handleAt (juce::Point<float> p) const;
+
+    static constexpr float minHz = 20.0f, maxHz = 20000.0f;
+    juce::RangedAudioParameter* params[2] {};
+    std::unique_ptr<juce::ParameterAttachment> atts[2];
+    juce::Colour colour;
+    int dragging = -1, hoverHandle = -1;
 };
 
 /** Fond noir texturé + fissures incandescentes (DA Altered Brother), généré une fois. */
