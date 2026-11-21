@@ -54,7 +54,17 @@ Choix faits (à valider à l'oreille) : 1/4 pointé interdit (retombe sur 1/4) ;
 25 % de pointé, divisions surtout 1/32–1/16 ; **mix jamais randomisé** (50 % par défaut) ;
 changement de temps = fondu entre deux têtes (12 ms, pas de glissement de pitch) ; changement de
 mode = fondu de 10 ms du routage. Pas encore de résonance de filtre, de wow, de throw, de ducking.
-Reste à faire : retours d'écoute (boucle sèche → rendu WAV), puis réintégration dans le rack IDGems.
+Référence fournie (21/11) : supersaw Vital 16 voix sans désaccord → delay Infiltrator, free 43,2 ms,
+coupe-bas, mix 50 %. Mesures : **ping-pong** (1er écho à DROITE, entrée sommée en mono),
+**feedback ≈ 90 %** (−0,9 dB par rebond), coupe-bas ≈ 150 Hz (12 dB/oct), et un léger assombrissement
+progressif des aigus à chaque rebond même sans coupe-haut (−0,15 dB à 3 kHz, −0,4 à 7 kHz, −0,7 à 12 kHz
+par rebond : ressemble à une interpolation linéaire / un shelf doux). IDGems Delay réglé pareil colle
+sur les médiums et les graves, mais il est plus brillant sur les répétitions (Hermite + coupe-haut ouvert).
+Rendus envoyés pour écoute (sec reconstruit en Python, pas son vrai sec). En attente : son avis,
+son vrai sec, la valeur exacte du coupe-bas d'Infiltrator. Piste : ajouter un réglage « Patine »
+(assombrissement doux par rebond) si les répétitions sonnent trop claires.
+Outil : `IDGemsDelayTests --render-one source.wav sortie.wav sync=0 time=43.2 mode=1 feedback=0.9 ...`
+Reste à faire : retours d'écoute, puis réintégration dans le rack IDGems.
 
 ## Décisions et retours déjà actés
 - **Mix des effets à 100 % par défaut et jamais randomisé** (« un effet à 20 %, c'est dégueulasse,

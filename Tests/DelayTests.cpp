@@ -1,7 +1,8 @@
 // Tests du module solo IDGems Delay : timing exact, règles du random, feedback 110 %, NaN, clics, plafond.
 // Modes annexes :
 //   IDGemsDelayTests --snapshot capture.png           capture de l'interface
-//   IDGemsDelayTests --render boucle.wav dossier/     rend plusieurs réglages en WAV pour écoute
+//   IDGemsDelayTests --render boucle_140bpm.wav dossier/   rend plusieurs réglages en WAV pour écoute
+//   IDGemsDelayTests --render-one source.wav sortie.wav sync=0 time=43.2 mode=1 ...   un réglage précis
 #include "../Plugins/Delay/DelayProcessor.h"
 #include "../Plugins/Delay/DelayEditor.h"
 
@@ -66,12 +67,14 @@ int firstPeak (const std::vector<float>& x, int from, float thr)
 
 int snapshotMain (const juce::String& path);
 int renderMain (const juce::String& wav, const juce::String& dir);
+int renderOneMain (int argc, char** argv);
 
 int main (int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI init;
     if (argc >= 3 && juce::String (argv[1]) == "--snapshot") return snapshotMain (argv[2]);
     if (argc >= 4 && juce::String (argv[1]) == "--render") return renderMain (argv[2], argv[3]);
+    if (argc >= 4 && juce::String (argv[1]) == "--render-one") return renderOneMain (argc, argv);
     std::cout << "=== Tests IDGems Delay ===" << std::endl;
 
     // 1. Timing : une impulsion revient exactement au bon endroit (sync et free), latence comprise
@@ -291,21 +294,93 @@ int snapshotMain (const juce::String& path)
 // ---------------------------------------------------------------------------
 // Rendu de WAV d'écoute : boucle sèche -> plusieurs réglages
 // ---------------------------------------------------------------------------
-int renderMain (const juce::String& wavPath, const juce::String& dirPath)
+namespace
+{
+bool loadWav (const juce::String& path, juce::AudioBuffer<float>& src, double& sr)
 {
     juce::AudioFormatManager fm;
     fm.registerBasicFormats();
-    std::unique_ptr<juce::AudioFormatReader> reader (fm.createReaderFor (juce::File (wavPath)));
-    if (reader == nullptr) { std::cout << "impossible de lire " << wavPath << std::endl; return 1; }
-    const double bpm = juce::File (wavPath).getFileNameWithoutExtension().retainCharacters ("0123456789.").getDoubleValue();
-    juce::AudioBuffer<float> src ((int) reader->numChannels, (int) reader->lengthInSamples);
+    std::unique_ptr<juce::AudioFormatReader> reader (fm.createReaderFor (juce::File (path)));
+    if (reader == nullptr) { std::cout << "impossible de lire " << path << std::endl; return false; }
+    src.setSize ((int) reader->numChannels, (int) reader->lengthInSamples);
     reader->read (&src, 0, (int) reader->lengthInSamples, 0, true, true);
+    sr = reader->sampleRate;
+    return true;
+}
+
+/** Rend `src` à travers le delay réglé avec `values` (identifiant, valeur réelle), + 3 s de queue. */
+void renderOne (const juce::AudioBuffer<float>& src, double sr, double bpm,
+                const std::vector<std::pair<juce::String, float>>& values, const juce::File& f)
+{
+    Harness h;
+    h.sr = sr;
+    h.head.bpm = bpm > 40.0 ? bpm : 140.0;
+    h.proc.prepareToPlay (h.sr, h.block);
+    for (auto& [id, v] : values) set (h.proc, id, v);
+    const int n = src.getNumSamples() + (int) (h.sr * 3.0);
+    std::vector<float> L ((size_t) n, 0.0f), R = L;
+    for (int i = 0; i < src.getNumSamples(); ++i)
+    {
+        L[(size_t) i] = src.getSample (0, i);
+        R[(size_t) i] = src.getSample (juce::jmin (1, src.getNumChannels() - 1), i);
+    }
+    h.process (L, R);
+    // on retire la latence du limiteur pour que le rendu soit calé sur la source
+    const int lat = h.proc.getLatencySamples();
+    juce::AudioBuffer<float> outBuf (2, n - lat);
+    outBuf.copyFrom (0, 0, L.data() + lat, n - lat);
+    outBuf.copyFrom (1, 0, R.data() + lat, n - lat);
+    f.deleteFile();
+    juce::WavAudioFormat wav;
+    std::unique_ptr<juce::OutputStream> os (new juce::FileOutputStream (f));
+    auto w = wav.createWriterFor (os, juce::AudioFormatWriterOptions().withSampleRate (h.sr).withNumChannels (2).withBitsPerSample (24));
+    if (w) w->writeFromAudioSampleBuffer (outBuf, 0, outBuf.getNumSamples());
+    std::cout << "rendu : " << f.getFullPathName() << std::endl;
+}
+
+double bpmFromName (const juce::String& path)
+{
+    // « boucle_140bpm.wav » -> 140
+    auto name = juce::File (path).getFileNameWithoutExtension().toLowerCase();
+    auto i = name.indexOf ("bpm");
+    if (i <= 0) return 0.0;
+    int s = i;
+    while (s > 0 && (juce::CharacterFunctions::isDigit (name[s - 1]) || name[s - 1] == '.')) --s;
+    return name.substring (s, i).getDoubleValue();
+}
+} // namespace
+
+/** --render-one source.wav sortie.wav id=valeur id=valeur ... */
+int renderOneMain (int argc, char** argv)
+{
+    juce::AudioBuffer<float> src;
+    double sr = 44100.0;
+    if (! loadWav (argv[2], src, sr)) return 1;
+    std::vector<std::pair<juce::String, float>> values;
+    double bpm = bpmFromName (argv[2]);
+    for (int a = 4; a < argc; ++a)
+    {
+        juce::String kv (argv[a]);
+        auto key = kv.upToFirstOccurrenceOf ("=", false, false);
+        auto val = kv.fromFirstOccurrenceOf ("=", false, false).getFloatValue();
+        if (key == "bpm") bpm = val; else values.push_back ({ key, val });
+    }
+    renderOne (src, sr, bpm, values, juce::File (argv[3]));
+    return 0;
+}
+
+int renderMain (const juce::String& wavPath, const juce::String& dirPath)
+{
+    juce::AudioBuffer<float> src;
+    double sr = 44100.0;
+    if (! loadWav (wavPath, src, sr)) return 1;
+    const double bpm = bpmFromName (wavPath);
     juce::File dir (dirPath);
     dir.createDirectory();
 
-    struct Preset { const char* name; std::vector<std::pair<const char*, float>> values; };
+    struct Preset { const char* name; std::vector<std::pair<juce::String, float>> values; };
     const std::vector<Preset> presets {
-        { "01_sec", {} },
+        { "01_sec", { { "mix", 0.0f } } },
         { "02_1-16_pingpong_fb60", { { "note", 3 }, { "mode", 1 }, { "feedback", 0.6f }, { "mix", 0.5f } } },
         { "03_1-32_stereo_fb85_filtre", { { "note", 2 }, { "feedback", 0.85f }, { "lowcut", 400 }, { "highcut", 4000 }, { "mix", 0.6f } } },
         { "04_1-8D_pingpong_fb50", { { "note", 4 }, { "feel", 1 }, { "mode", 1 }, { "feedback", 0.5f }, { "mix", 0.45f } } },
@@ -315,30 +390,6 @@ int renderMain (const juce::String& wavPath, const juce::String& dirPath)
         { "08_1-64_fb110_emballement", { { "note", 1 }, { "feedback", 1.1f }, { "highcut", 3000 }, { "mix", 0.5f } } },
     };
     for (const auto& pr : presets)
-    {
-        Harness h;
-        h.sr = reader->sampleRate;
-        h.head.bpm = bpm > 40.0 ? bpm : 140.0;
-        h.proc.prepareToPlay (h.sr, h.block);
-        if (juce::String (pr.name) == "01_sec") set (h.proc, "mix", 0.0f);
-        for (auto& [id, v] : pr.values) set (h.proc, id, v);
-        const int n = src.getNumSamples() + (int) (h.sr * 3.0);
-        std::vector<float> L ((size_t) n, 0.0f), R = L;
-        for (int i = 0; i < src.getNumSamples(); ++i)
-        {
-            L[(size_t) i] = src.getSample (0, i);
-            R[(size_t) i] = src.getSample (juce::jmin (1, src.getNumChannels() - 1), i);
-        }
-        h.process (L, R);
-        juce::AudioBuffer<float> outBuf (2, n);
-        outBuf.copyFrom (0, 0, L.data(), n);
-        outBuf.copyFrom (1, 0, R.data(), n);
-        auto f = dir.getChildFile (juce::String (pr.name) + ".wav");
-        f.deleteFile();
-        juce::WavAudioFormat wav;
-        std::unique_ptr<juce::AudioFormatWriter> w (wav.createWriterFor (new juce::FileOutputStream (f), h.sr, 2, 24, {}, 0));
-        if (w) w->writeFromAudioSampleBuffer (outBuf, 0, n);
-        std::cout << "rendu : " << f.getFullPathName() << std::endl;
-    }
+        renderOne (src, sr, bpm, pr.values, dir.getChildFile (juce::String (pr.name) + ".wav"));
     return 0;
 }
