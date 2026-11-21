@@ -118,3 +118,52 @@ if(IDGEMS_BUILD_TESTS)
         PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
         PUBLIC juce::juce_recommended_config_flags)
 endif()
+
+# ===========================================================================
+# Plugins « un effet à la fois » : petits VST3 séparés, même socle.
+# ===========================================================================
+
+# --- IDGems Gate : gate rythmique à motif dessinable (façon ShaperBox / Transgate)
+set(IDGEMS_GATE_SOURCES
+    Source/Plugins/Gate/GateProcessor.cpp
+    Source/Plugins/Gate/GateEditor.cpp
+    Source/UI/LookAndFeel.cpp
+    Source/UI/Theme.cpp)
+
+juce_add_plugin(IDGemsGate
+    COMPANY_NAME                "IDGems"
+    PLUGIN_MANUFACTURER_CODE    Idgm
+    PLUGIN_CODE                 Idgt
+    PRODUCT_NAME                "IDGems Gate"
+    FORMATS                     VST3 Standalone
+    IS_SYNTH                    FALSE
+    NEEDS_MIDI_INPUT            TRUE
+    NEEDS_MIDI_OUTPUT           FALSE
+    IS_MIDI_EFFECT              FALSE
+    EDITOR_WANTS_KEYBOARD_FOCUS TRUE
+    VST3_CATEGORIES             Fx Dynamics
+    COPY_PLUGIN_AFTER_BUILD     ${IDGEMS_COPY_AFTER_BUILD})
+target_sources(IDGemsGate PRIVATE ${IDGEMS_GATE_SOURCES})
+target_include_directories(IDGemsGate PRIVATE Source)
+target_compile_definitions(IDGemsGate PUBLIC ${IDGEMS_DEFINITIONS})
+if(MSVC)
+    target_compile_options(IDGemsGate PRIVATE /utf-8)
+endif()
+target_link_libraries(IDGemsGate
+    PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
+    PUBLIC juce::juce_recommended_config_flags
+           juce::juce_recommended_lto_flags
+           juce::juce_recommended_warning_flags)
+
+if(IDGEMS_BUILD_TESTS)
+    juce_add_console_app(IDGemsGateTests PRODUCT_NAME "IDGemsGateTests")
+    target_sources(IDGemsGateTests PRIVATE Tests/GateTests.cpp ${IDGEMS_GATE_SOURCES})
+    target_include_directories(IDGemsGateTests PRIVATE Source)
+    target_compile_definitions(IDGemsGateTests PRIVATE ${IDGEMS_DEFINITIONS} IDGEMS_TESTS=1 JUCE_STANDALONE_APPLICATION=0)
+    if(MSVC)
+        target_compile_options(IDGemsGateTests PRIVATE /utf-8)
+    endif()
+    target_link_libraries(IDGemsGateTests
+        PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
+        PUBLIC juce::juce_recommended_config_flags)
+endif()

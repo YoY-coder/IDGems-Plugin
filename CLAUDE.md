@@ -34,6 +34,18 @@ des effets qu'il faut reprendre, pas l'architecture.
 **Mets à jour ce fichier** à la fin de chaque session avec les décisions prises (effet traité,
 réglages validés, ce qui reste à faire).
 
+## Avancement « un effet à la fois »
+- **IDGems Gate** (21/11/2026) — 1er petit VST3 séparé : `Source/Plugins/Gate/`, cible CMake `IDGemsGate`,
+  artefact CI `IDGems-Gate-VST3-Windows`, tests `Tests/GateTests.cpp` (`IDGemsGateTests`).
+  Demande : gate stutter avec graphe dessinable façon ShaperBox / Filtrator, surtout des marches on/off
+  style Transgate, mais avec la main sur les courbes pour rendre le gate plus tight.
+  Fait : mode PAS (on/off par case, Maj = niveau) + mode COURBE (points, courbure par segment via losange bleu,
+  aimant grille), motifs prédéfinis, ◄ ►, inverser, aléa, annuler/rétablir ; Tempo (1/16 → 8 mesures, T et pointé)
+  ou Hz ; grille 2-64 pas ; swing ; décalage ; redémarrage Hôte / note MIDI ; attaque / relâche (rampes linéaires,
+  plancher 0,1 ms) ; profondeur (pas de mix séparé : sur un gate c'est la même chose).
+  Rendu WAV pour écoute : `IDGemsGateTests --render dossier [boucle.wav] [bpm]`.
+  **À faire** : retour d'écoute de l'utilisateur dans Ableton, puis réglages à l'oreille.
+
 ## Décisions et retours déjà actés
 - **Mix des effets à 100 % par défaut et jamais randomisé** (« un effet à 20 %, c'est dégueulasse,
   le glitch doit s'affirmer »). Seule exception : famille Espace (delay, reverb, chorus, flanger, phaser).
@@ -76,6 +88,7 @@ Source/Modulation  LFO (formes au crayon), random, envelope follower, macros
 Source/Engine      séquenceurs, chaîne de sortie (HP, mono, OTT, clip, limiteur), enregistreur
 Source/State       random (seed, historique, favoris, apprentissage), presets, état
 Source/UI          interface (Theme, Knob, RackView, EffectPanel, Graphs, Icons, panneaux…)
+Source/Plugins     petits VST3 « un effet à la fois » (Gate/…)
 Tests              tests de stabilité + capture d'interface
 docs/INSTALLATION.md  installation pas à pas pour l'utilisateur
 ```
