@@ -118,3 +118,48 @@ if(IDGEMS_BUILD_TESTS)
         PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
         PUBLIC juce::juce_recommended_config_flags)
 endif()
+
+# ---------------------------------------------------------------------------
+# Effet Smear seul : petit VST3 « IDGems Smear » (méthode « un effet à la fois »)
+# + outil de rendu hors ligne (WAV d'écoute, contrôles, capture d'interface)
+# ---------------------------------------------------------------------------
+juce_add_plugin(IDGemsSmear
+    COMPANY_NAME                "IDGems"
+    PLUGIN_MANUFACTURER_CODE    Idgm
+    PLUGIN_CODE                 IdSm
+    PRODUCT_NAME                "IDGems Smear"
+    FORMATS                     VST3 Standalone
+    IS_SYNTH                    FALSE
+    NEEDS_MIDI_INPUT            FALSE
+    NEEDS_MIDI_OUTPUT           FALSE
+    IS_MIDI_EFFECT              FALSE
+    VST3_CATEGORIES             Fx
+    COPY_PLUGIN_AFTER_BUILD     ${IDGEMS_COPY_AFTER_BUILD})
+
+set(IDGEMS_SMEAR_SOURCES
+    Plugins/Smear/SmearProcessor.cpp
+    Plugins/Smear/SmearEditor.cpp
+    Source/UI/Theme.cpp)
+
+target_sources(IDGemsSmear PRIVATE ${IDGEMS_SMEAR_SOURCES})
+target_include_directories(IDGemsSmear PRIVATE Source Plugins/Smear)
+target_compile_definitions(IDGemsSmear PUBLIC ${IDGEMS_DEFINITIONS})
+if(MSVC)
+    target_compile_options(IDGemsSmear PRIVATE /utf-8)
+endif()
+target_link_libraries(IDGemsSmear
+    PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
+    PUBLIC juce::juce_recommended_config_flags
+           juce::juce_recommended_lto_flags
+           juce::juce_recommended_warning_flags)
+
+juce_add_console_app(IDGemsSmearRender PRODUCT_NAME "IDGemsSmearRender")
+target_sources(IDGemsSmearRender PRIVATE Tools/SmearRender.cpp ${IDGEMS_SMEAR_SOURCES})
+target_include_directories(IDGemsSmearRender PRIVATE Source Plugins/Smear)
+target_compile_definitions(IDGemsSmearRender PRIVATE ${IDGEMS_DEFINITIONS} IDGEMS_TESTS=1)
+if(MSVC)
+    target_compile_options(IDGemsSmearRender PRIVATE /utf-8)
+endif()
+target_link_libraries(IDGemsSmearRender
+    PRIVATE ${IDGEMS_JUCE_MODULES} IDGemsData
+    PUBLIC juce::juce_recommended_config_flags)

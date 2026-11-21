@@ -79,3 +79,18 @@ Source/UI          interface (Theme, Knob, RackView, EffectPanel, Graphs, Icons,
 Tests              tests de stabilité + capture d'interface
 docs/INSTALLATION.md  installation pas à pas pour l'utilisateur
 ```
+
+## Effet solo : Smear (session du 21/11/2026, branche `claude/beautiful-thompson-pqkrf6`)
+- Demande : smear inspiré de la section Smear de Manipulator (Polyverse) : « stretch » sans constante
+  temporelle/rythmique, très coulant. Référence fournie : boucle de basse sèche + version Manipulator.
+- Analyse du wet de référence : attaques et trous rythmiques effacés, spectre en lignes harmoniques
+  continues (notes gardées, ~40 dB entre harmoniques), lentes ondulations de niveau, niveau RMS inchangé.
+- Moteur `Source/Effects/SmearEngine.h` : vocodeur de phase (FFT 4096, recouvrement 8x), puissance par
+  bande lissée dans le temps (SMEAR, MONTÉE), fréquence instantanée lissée pondérée par l'énergie,
+  phase verrouillée par pic, FOCUS (creuse le non-harmonique), DRIFT (désaccord/niveau/largeur lents,
+  basse < 200 Hz mono), TONE, FREEZE, MIX 100 %, SORTIE, limiteur -0,3 dBFS. Latence = taille FFT.
+- VST3 « IDGems Smear » : `Plugins/Smear/`, artefact CI `IDGems-Smear-VST3-Windows`.
+- Outil `Tools/SmearRender.cpp` : `IDGemsSmearRender <dossier> <boucle.wav>` (8 rendus d'écoute),
+  `--check` (latence exacte, NaN, plafond), `--snapshot img.png`.
+- **À faire** : retours à l'oreille de l'utilisateur sur les rendus 01 à 08, puis ajuster ; ensuite
+  réintégrer dans le rack IDGems.
