@@ -128,6 +128,7 @@ void StretchProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::Mid
     }
     const double stepLen = s.rateBeats * spb;
     uiCapture = (float) (juce::jmin (sr / juce::jmax (1.0, (double) s.grainHz), stepLen * 0.5) / stepLen);
+    uiRepeats = (float) (stepLen * (double) s.grainHz / sr);
 }
 
 juce::AudioProcessorEditor* StretchProcessor::createEditor() { return new StretchEditor (*this); }

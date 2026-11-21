@@ -42,6 +42,7 @@ public:
     std::atomic<int> uiStep { 0 };
     std::atomic<float> uiLevel { 0.0f };
     std::atomic<float> uiCapture { 0.25f }; // part du pas jouée avant le gel
+    std::atomic<float> uiRepeats { 5.0f };  // répétitions du grain par pas
 
     // copie de la sortie (mono) pour le spectre de l'interface : écrite par l'audio, lue par l'UI
     static constexpr int scopeSize = 4096;

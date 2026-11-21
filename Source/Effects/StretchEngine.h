@@ -3,13 +3,15 @@
 
 namespace idg
 {
-/** Stretch (v3, calqué sur l'analyse d'un rendu Infiltrator « speed 0, grain 40 Hz, 1/16 ») :
+/** Stretch (v4, calqué sur l'analyse d'un rendu Infiltrator « speed 0, grain 40 Hz, 1/16 ») :
     à chaque pas rythmique (Rate), le son direct passe le temps d'un grain (1/f), puis ce grain
     est rejoué en boucle exacte jusqu'au pas suivant. La boucle a une période de 1/f : à 40 Hz,
     25 ms rejouées 40 fois par seconde (forme d'onde intacte, pas de nuage de grains superposés).
     - Raccord de boucle sans clic : les X premiers échantillons de la boucle sont fondus avec les
       X échantillons qui suivent la fenêtre, donc la fin de la boucle enchaîne sur son début comme
       dans le son d'origine, et le premier passage prolonge le son direct sans rupture.
+    - Le grain peut bouger PENDANT la boucle (automation) : la fenêtre reste ancrée sur sa fin, sa longueur
+      suit le grain lissé (~10 ms) et la position dans la boucle est gardée en proportion (pas de saut).
     - Bascule boucle précédente -> son direct : fondu à puissance constante de quelques ms.
     - Sortie : coupe-bas et coupe-haut 24 dB/oct (deux SVF en cascade chacun), résonance commune.
     Pur DSP, sans allocation dans process(). */
@@ -33,7 +35,8 @@ public:
         // un grain de 1 s + marge (fenêtre + fondu)
         buf.allocate ((int) (sr * 2.5) + 1024);
         maxXf = juce::jmax (8.0, sr * 0.003);
-        const auto cap = (size_t) (sr / minGrainHz + maxXf + 64);
+        maxG = sr / (double) minGrainHz;
+        const auto cap = (size_t) (maxG + maxXf + 64);
         for (auto* b : { &cur, &old }) { b->d[0].assign (cap, 0.0f); b->d[1].assign (cap, 0.0f); }
         reset();
     }
@@ -49,19 +52,26 @@ public:
         for (auto& f : lp) f.reset();
         hpSm = 20.0f; lpSm = 20000.0f; resoSm = 0.0f;
         filtCount = 0;
+        gSm = -1.0;
     }
 
     /** beatPos : position (en noires) au début du bloc ; spb : échantillons par noire. */
     void process (float* L, float* R, int n, double beatPos, double spb, const Settings& s)
     {
         const double rate = juce::jmax (1.0 / 64.0, s.rateBeats);
-        const double G = juce::jlimit (16.0, sr / (double) minGrainHz, sr / (double) juce::jmax (minGrainHz, s.grainHz));
+        const double gTarget = juce::jlimit (16.0, maxG, sr / (double) juce::jmax (minGrainHz, s.grainHz));
+        if (gSm <= 0.0) gSm = gTarget;
+        // lissage du grain (~10 ms, en log) : l'automation reste fluide, sans escalier
+        const double gCoef = 1.0 - std::exp (-1.0 / (0.010 * sr));
+        const double logTarget = std::log (gTarget);
 
         for (int i = 0; i < n; ++i)
         {
             const float inL = L[i], inR = R[i];
             buf.push (inL, inR);
 
+            gSm = std::exp (std::log (gSm) + gCoef * (logTarget - std::log (gSm)));
+            const double G = gSm;
             const double beat = beatPos + (double) i / spb;
             const auto step = (int64_t) std::floor (beat / rate);
 
@@ -80,7 +90,6 @@ public:
                 looping = false;
                 fadePos = 0.0;
                 loopStart = t + (int64_t) std::llround (capture);
-                pendingG = G;
             }
 
             if (! looping && t >= loopStart && lastStep != std::numeric_limits<int64_t>::min())
@@ -89,15 +98,15 @@ public:
                 // raccord lit l'échantillon courant (= son direct) : aucune rupture.
                 looping = true;
                 oldActive = false;
-                startLoop (cur, (double) t - pendingG, pendingG, xf);
+                startLoop (cur, (double) t, xf);
             }
             feed (cur);
 
             float l, r;
             if (looping)
             {
-                loopSample (cur, l, r);
-                advance (cur);
+                loopSample (cur, G, l, r);
+                advance (cur, G);
             }
             else
             {
@@ -109,8 +118,8 @@ public:
                     const float a = (float) juce::jmin (1.0, fadePos / xf);
                     const float gIn = std::sin (0.5f * dsp::pi * a), gOld = std::cos (0.5f * dsp::pi * a);
                     float ol, orr;
-                    loopSample (old, ol, orr);
-                    advance (old);
+                    loopSample (old, G, ol, orr);
+                    advance (old, G);
                     l = inL * gIn + ol * gOld;
                     r = inR * gIn + orr * gOld;
                     if (a >= 1.0f) oldActive = false;
@@ -157,14 +166,19 @@ public:
     }
 
 private:
-    /** Boucle figée, copiée hors du tampon circulaire (elle peut tenir aussi longtemps que le pas). */
+    /** Boucle figée, copiée hors du tampon circulaire (elle peut tenir aussi longtemps que le pas).
+        On garde tout le passé possible (1 s, le grain le plus long) avant la fin de la fenêtre : le grain
+        peut ainsi changer PENDANT la boucle (automation) — la fenêtre reste ancrée sur sa fin,
+        [fin - G, fin), et seule sa longueur bouge. */
     struct Loop
     {
         std::vector<float> d[2];
         int64_t base = 0;     // index absolu de d[.][0]
         int64_t filled = 0;   // nombre d'échantillons copiés
         int64_t needed = 0;
-        double start = 0, len = 1, phase = 0, xf = 1;
+        double end = 0;       // fin de la fenêtre figée (index absolu)
+        double p = 0;         // position dans la boucle, 0..1
+        double xf = 1;        // longueur du raccord (échantillons)
 
         float at (int c, int64_t abs) const
         {
@@ -183,13 +197,12 @@ private:
         }
     };
 
-    /** Copie la fenêtre [start, start + len + xf] : la partie déjà enregistrée tout de suite,
-        la suite (le raccord) au fil des échantillons via feed(). */
-    void startLoop (Loop& lp_, double start, double len, double fade)
+    /** Copie [fin - grain max, fin] tout de suite, puis la suite (le raccord) au fil des échantillons via feed(). */
+    void startLoop (Loop& lp_, double end, double fade)
     {
-        lp_.start = start; lp_.len = len; lp_.phase = 0.0; lp_.xf = fade;
-        lp_.base = (int64_t) std::floor (start) - 2;
-        lp_.needed = juce::jmin ((int64_t) lp_.d[0].size(), (int64_t) std::ceil (len + fade) + 6);
+        lp_.end = end; lp_.p = 0.0; lp_.xf = fade;
+        lp_.base = (int64_t) std::floor (end - maxG) - 4;
+        lp_.needed = juce::jmin ((int64_t) lp_.d[0].size(), (int64_t) std::ceil (maxG + maxXf) + 12);
         lp_.filled = 0;
         while (lp_.filled < lp_.needed && lp_.base + lp_.filled <= t)
         {
@@ -208,30 +221,32 @@ private:
         ++lp_.filled;
     }
 
-    static double qFor (float reso) { return 1.3065 + (double) juce::jlimit (0.0f, 1.0f, reso) * 4.0; }
-
-    /** Échantillon de la boucle à sa phase courante (raccord fondu sur les xf premiers échantillons). */
-    void loopSample (const Loop& lp_, float& l, float& r) const
+    /** Échantillon de la boucle (raccord fondu sur les premiers échantillons). */
+    static void loopSample (const Loop& lp_, double G, float& l, float& r)
     {
-        const double pos = lp_.start + lp_.phase;
+        const double inLoop = lp_.p * G;           // échantillons depuis le début de la boucle
+        const double pos = lp_.end - G + inLoop;
         l = lp_.read (0, pos);
         r = lp_.read (1, pos);
-        if (lp_.phase < lp_.xf)
+        const double fade = juce::jmin (lp_.xf, G * 0.25);
+        if (inLoop < fade)
         {
             // au début de la boucle : on part de ce qui suivait la fenêtre (continuité avec la fin)
-            const float a = (float) (lp_.phase / lp_.xf);
+            const float a = (float) (inLoop / fade);
             const float w = 0.5f - 0.5f * std::cos (dsp::pi * a); // 0 -> 1
-            const float al = lp_.read (0, pos + lp_.len), ar = lp_.read (1, pos + lp_.len);
+            const float al = lp_.read (0, pos + G), ar = lp_.read (1, pos + G);
             l = al + (l - al) * w;
             r = ar + (r - ar) * w;
         }
     }
 
-    static void advance (Loop& lp_)
+    static void advance (Loop& lp_, double G)
     {
-        lp_.phase += 1.0;
-        if (lp_.phase >= lp_.len) lp_.phase -= lp_.len;
+        lp_.p += 1.0 / G;
+        if (lp_.p >= 1.0) lp_.p -= std::floor (lp_.p);
     }
+
+    static double qFor (float reso) { return 1.3065 + (double) juce::jlimit (0.0f, 1.0f, reso) * 4.0; }
 
     void updateFilters (const Settings& s)
     {
@@ -257,7 +272,7 @@ private:
     }
 
     dsp::RingBuffer buf;
-    double sr = 44100.0, maxXf = 132.0, xf = 64.0, fadePos = 0.0, pendingG = 1102.5;
+    double sr = 44100.0, maxXf = 132.0, xf = 64.0, fadePos = 0.0, maxG = 44100.0, gSm = -1.0;
     int64_t t = 0, lastStep = 0, loopStart = 0;
     Loop cur, old;
     bool looping = false, oldActive = false;

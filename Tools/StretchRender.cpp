@@ -145,6 +145,7 @@ int main (int argc, char** argv)
         { "03_1-16_80Hz.wav",            "1/16, grain 80 Hz",                        0.25, 80.0f,  20.0f,  20000.0f, 0.0f },
         { "04_1-8_40Hz.wav",             "1/8, grain 40 Hz",                         0.5,  40.0f,  20.0f,  20000.0f, 0.0f },
         { "05_1-32_40Hz.wav",            "1/32, grain 40 Hz",                        0.125, 40.0f, 20.0f,  20000.0f, 0.0f },
+        { "07_1-4_grain_automatise_20-160Hz.wav", "1/4, grain automatisé 20 -> 160 Hz pendant le gel", 1.0, -1.0f, 20.0f, 20000.0f, 0.0f },
         { "06_1-16_40Hz_filtre.wav",     "1/16, 40 Hz, coupe-bas 200 Hz, coupe-haut 3 kHz, réso 40 %", 0.25, 40.0f, 200.0f, 3000.0f, 0.4f },
     };
 
@@ -157,10 +158,12 @@ int main (int argc, char** argv)
         idg::StretchEngine::Settings s;
         s.rateBeats = p.rate; s.grainHz = p.hz; s.hpHz = p.hp; s.lpHz = p.lp; s.reso = p.reso;
         const double spb = sr * 60.0 / bpm;
-        const int blk = 256;
+        const int blk = 64;
         for (int pos = 0; pos < b.getNumSamples(); pos += blk)
         {
             const int n = juce::jmin (blk, b.getNumSamples() - pos);
+            if (p.hz < 0.0f) // automation : balayage exponentiel du grain sur toute la durée
+                s.grainHz = 20.0f * std::pow (8.0f, (float) pos / (float) b.getNumSamples());
             e.process (b.getWritePointer (0, pos), b.getWritePointer (1, pos), n, pos / spb, spb, s);
         }
         // contrôles : NaN, crête, plus gros saut entre deux échantillons (clics)

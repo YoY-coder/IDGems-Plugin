@@ -100,36 +100,31 @@ void StretchLookAndFeel::drawButtonText (juce::Graphics& g, juce::TextButton& b,
 // ---------------------------------------------------------------------------
 void StepStrip::paint (juce::Graphics& g)
 {
+    // simple indicateur : 4 pas, le pas en cours s'allume, un trait par répétition du grain
     auto r = getLocalBounds().toFloat();
     g.setColour (Theme::bg.brighter (0.03f));
     g.fillRect (r);
 
     constexpr int steps = 4;
-    const float cap = juce::jlimit (0.0f, 1.0f, proc.uiCapture.load());
     const float phase = proc.uiPhase.load();
     const int cur = ((proc.uiStep.load() % steps) + steps) % steps;
     const float sw = r.getWidth() / steps;
+    const float reps = proc.uiRepeats.load();
 
     for (int i = 0; i < steps; ++i)
     {
         auto s = juce::Rectangle<float> (r.getX() + i * sw, r.getY(), sw, r.getHeight()).reduced (3.0f, 5.0f);
         const bool active = i == cur;
-        g.setColour (Theme::text.withAlpha (active ? 0.35f : 0.15f));
-        g.fillRect (s.withWidth (s.getWidth() * cap));
-        auto fr = s.withTrimmedLeft (s.getWidth() * cap);
-        g.setColour (kGlitch.withAlpha (active ? 0.85f : 0.35f));
-        g.fillRect (fr);
-        // une barre par répétition du grain (si elles restent lisibles)
-        const float reps = proc.apvts.getRawParameterValue ("grain_hz")->load()
-                           * (float) (StretchProcessor::rateBeats ((int) proc.apvts.getRawParameterValue ("rate")->load()) * 60.0 / 120.0);
-        const float px = s.getWidth() * cap / juce::jmax (1.0f, reps * cap);
+        g.setColour (kGlitch.withAlpha (active ? 0.85f : 0.25f));
+        g.fillRect (s);
+        const float px = s.getWidth() / juce::jmax (1.0f, reps);
         if (px >= 4.0f)
         {
             g.setColour (juce::Colours::black.withAlpha (0.3f));
-            for (float xx = fr.getX() + px; xx < fr.getRight(); xx += px)
-                g.fillRect (xx, fr.getY(), 1.5f, fr.getHeight());
+            for (float xx = s.getX() + px; xx < s.getRight() - 1.0f; xx += px)
+                g.fillRect (xx, s.getY(), 1.5f, s.getHeight());
         }
-        g.setColour (active ? kGlitch : Theme::line);
+        g.setColour (active ? kGlitch.brighter (0.3f) : Theme::line);
         g.drawRect (s, 1.0f);
         if (active)
         {
@@ -373,18 +368,6 @@ void StretchEditor::Content::paint (juce::Graphics& g)
     g.drawText (IDG_T ("IDGEMS · GEL RYTHMIQUE DE LA FRAME"), juce::Rectangle<float> (24.0f, 54.0f, 400.0f, 14.0f), juce::Justification::centredLeft, false);
 
     g.drawText ("RATE", juce::Rectangle<float> (24.0f, 78.0f, 80.0f, 14.0f), juce::Justification::centredLeft, false);
-    struct Leg { const char* t; juce::Colour c; };
-    const Leg legs[] { { "JOUÉ", Theme::text.withAlpha (0.35f) }, { "BOUCLE FIGÉE", kGlitch } };
-    float lx = r.getRight() - 24.0f - 200.0f;
-    for (auto& l : legs)
-    {
-        g.setColour (l.c);
-        g.fillRect (lx, 81.0f, 9.0f, 9.0f);
-        g.setColour (Theme::textDim);
-        g.drawText (IDG_T (l.t), juce::Rectangle<float> (lx + 14.0f, 78.0f, 110.0f, 14.0f), juce::Justification::centredLeft, false);
-        lx += 74.0f;
-    }
-
     auto label = [&] (juce::Rectangle<int> a, const char* t)
     {
         g.setFont (Theme::mono (12.0f, true));
@@ -401,11 +384,20 @@ void StretchEditor::Content::paint (juce::Graphics& g)
     // durée du grain sous le potard
     if (grain != nullptr)
     {
-        const double ms = 1000.0 / juce::jmax (1.0, grain->getValue());
+        const double hz = juce::jmax (1.0, grain->getValue());
+        const double ms = 1000.0 / hz;
+        // note la plus proche + écart en cents (la boucle sonne à cette hauteur)
+        const double midi = 69.0 + 12.0 * std::log2 (hz / 440.0);
+        const int nn = (int) std::lround (midi);
+        const int cents = (int) std::lround ((midi - nn) * 100.0);
+        const auto note = juce::MidiMessage::getMidiNoteName (nn, true, true, 3);
+        g.setFont (Theme::title (15.0f));
+        g.setColour (kGlitch.brighter (0.2f));
+        g.drawText (note, grainArea.withTop (grainArea.getBottom() - 36).withHeight (20).toFloat(), juce::Justification::centred, false);
         g.setFont (Theme::mono (11.0f));
         g.setColour (Theme::textDim);
-        g.drawText ("= " + juce::String (ms, ms < 10.0 ? 1 : 0) + " ms", grainArea.withTop (grainArea.getBottom() - 16).toFloat(),
-                    juce::Justification::centred, false);
+        g.drawText ((cents >= 0 ? "+" : "") + juce::String (cents) + " ct  |  " + juce::String (ms, ms < 10.0 ? 1 : 0) + " ms",
+                    grainArea.withTop (grainArea.getBottom() - 16).toFloat(), juce::Justification::centred, false);
     }
 }
 
@@ -422,7 +414,7 @@ void StretchEditor::Content::resized()
     r.removeFromBottom (14);
 
     grainArea = r.removeFromLeft (190);
-    if (grain) grain->setBounds (grainArea.withTrimmedTop (16).withTrimmedBottom (16));
+    if (grain) grain->setBounds (grainArea.withTrimmedTop (16).withTrimmedBottom (36));
     r.removeFromLeft (14);
     resoArea = r.removeFromRight (96);
     if (reso) reso->setBounds (resoArea.withTrimmedTop (16).withSizeKeepingCentre (96, 110));
@@ -459,8 +451,8 @@ StretchEditor::StretchEditor (StretchProcessor& p) : AudioProcessorEditor (p), p
         content.addAndMakeVisible (*s);
         return s;
     };
-    content.grain = makeKnob ("grain_hz", "Fréquence de répétition du grain dans la boucle (40 Hz = 25 ms rejouées 40 fois par seconde). "
-                                          "Grave = la frame se reconnaît, aigu = buzz qui impose sa note.");
+    content.grain = makeKnob ("grain_hz", "Fréquence de répétition du grain (40 Hz = 25 ms rejouées 40 fois par seconde). La note affichée est la "
+                                          "hauteur que prend la boucle. Automatisable : le grain change en direct, même pendant le gel.");
     content.reso = makeKnob ("reso", "Résonance commune du coupe-bas et du coupe-haut.");
     grainAtt = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.apvts, "grain_hz", *content.grain);
     resoAtt = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (proc.apvts, "reso", *content.reso);

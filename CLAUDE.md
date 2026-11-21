@@ -69,7 +69,13 @@ réglages validés, ce qui reste à faire).
   (spectre de sortie + courbe, poignées : glisser = fréquence, haut/bas = résonance, double-clic = reset).
   Hold/Texture/Vitesse/Mix supprimés (Hold : question posée, pas de réponse ; à rajouter s'il le demande).
 - CI : artefact séparé **IDGems-Stretch-VST3-Windows** (le Stretch seul).
-- Reste à faire : ses retours en conditions réelles sur la v3, puis réintégration au rack.
+- Retour v3 (21/11) : « il y a de l'idée, le son est cool, j'aime bien ». Demandes :
+  grain modifiable PENDANT le gel (automation), afficher la note du grain (comme son « Bit Repeat »),
+  retirer la légende « joué / boucle figée » (incomprise, pas manipulable).
+- v4 : grain en direct (lissé ~10 ms en log, fenêtre ancrée sur sa fin, position gardée en proportion ;
+  la boucle copie 1 s de passé pour pouvoir s'allonger) ; note + cents sous le potard (convention Ableton
+  C3 = 60) ; frise réduite à un indicateur de pas avec un trait par répétition du grain ; légende supprimée.
+- Reste à faire : ses retours sur la v4 (piste : accrocher le grain aux demi-tons ?), puis réintégration au rack.
 
 ## Décisions et retours déjà actés
 - **Mix des effets à 100 % par défaut et jamais randomisé** (« un effet à 20 %, c'est dégueulasse,
