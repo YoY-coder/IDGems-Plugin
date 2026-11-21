@@ -140,7 +140,7 @@ bool PresetManager::load (int index)
                 break;
             case 5:
                 on (FxTapeStop); set (FxTapeStop, "auto", 2.0f);
-                on (FxDelay, 0.3f); set (FxDelay, "wow", 0.6f);
+                on (FxDelay, 0.3f); set (FxDelay, "highcut", 5000.0f);
                 on (FxBitcrush, 0.5f); set (FxBitcrush, "bits", 12.0f);
                 on (FxFilter); set (FxFilter, "cutoff", 6000.0f);
                 break;
@@ -155,7 +155,7 @@ bool PresetManager::load (int index)
                 break;
             case 8:
                 on (FxGate); set (FxGate, "pattern", 2.0f);
-                on (FxDelay, 0.35f); set (FxDelay, "pingpong", 1.0f);
+                on (FxDelay, 0.35f); set (FxDelay, "mode", 1.0f);
                 on (FxPhaser, 0.6f);
                 break;
             default: break;

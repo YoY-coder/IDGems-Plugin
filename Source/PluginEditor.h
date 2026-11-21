@@ -31,6 +31,7 @@ public:
     static constexpr int baseW = 1280, baseH = 800;
     void debugSelectTab (int t) { selectTab (t); }
     void debugTick() { timerCallback(); }
+    void debugSelectEffect (int fx) { selectEffect (fx); }
 
 private:
     struct Content;

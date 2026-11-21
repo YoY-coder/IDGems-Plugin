@@ -278,16 +278,21 @@ std::vector<EffectDef> buildEffects()
 
     // ---------------- ESPACE ----------------
     add ("delay", "Delay", "DELAY", FamSpace, {
-            F ("time", "Temps", 1.0f, 2000.0f, 375.0f, "ms", 0.4f),
+            // module 01 validé à l'oreille (voir Source/Effects/GlitchDelay.h)
+            F ("time", "Temps", 0.3f, 500.0f, 60.0f, "ms", 0.26f, 0.18f, 0.77f, IDG_T ("Temps libre (mode free) : 0,3 ms (peigne) à 500 ms")),
             B ("sync", "Sync", true),
-            Div ("div", "Division", "1/8D", "1/32", "1/2"),
-            F ("fb", "Feedback", 0.0f, 1.0f, 0.45f, "%", 1.0f, 0.1f, 0.8f),
-            B ("pingpong", "Ping-pong", false),
-            F ("tone", "Tone", 500.0f, 20000.0f, 8000.0f, "Hz", 0.3f),
-            F ("lowcut", "Coupe-bas", 20.0f, 2000.0f, 120.0f, "Hz", 0.3f, 0.0f, 0.6f),
-            F ("wow", "Wow", 0.0f, 1.0f, 0.0f, "%", 1.0f, 0.0f, 0.5f),
+            C ("note", "Division", { "1/128", "1/64", "1/32", "1/16", "1/8", "1/4" }, 3, 0.2f, 1.0f,
+               IDG_T ("Division calée sur le tempo : jamais plus d'une noire")),
+            C ("feel", "Type", { "Droit", IDG_T ("Pointé"), "Ternaire" }, 0, 0.0f, 0.36f,
+               IDG_T ("Droit / pointé / ternaire (le random ne choisit jamais le ternaire)")),
+            F ("fb", "Feedback", 0.0f, 1.1f, 0.45f, "%", 1.0f, 0.0f, 1.0f / 1.1f,
+               IDG_T ("Au-delà de 100 % la boucle s'emballe et sature (random plafonné à 100 %)")),
+            C ("mode", "Mode", { IDG_T ("Stéréo"), "Ping-pong", "Mono" }, 0),
+            sym (F ("offset", IDG_T ("Décalage"), -20.0f, 20.0f, 0.0f, "ms", 0.5f, 0.2f, 0.8f, IDG_T ("Décalage stéréo : retarde un côté de quelques ms"))),
+            F ("lowcut", "Coupe-bas", 20.0f, 5000.0f, 20.0f, "Hz", 0.24f, 0.0f, 0.75f, IDG_T ("Coupe-bas dans la boucle")),
+            F ("highcut", "Coupe-haut", 200.0f, 20000.0f, 20000.0f, "Hz", 0.322f, 0.38f, 1.0f, IDG_T ("Coupe-haut dans la boucle")),
             B ("throw", "Throw", false, false, IDG_T ("Mode throw : seul le pad / séquenceur / MIDI envoie dans le delay, la queue reste"))
-         }, 0.35f, true, "Delay synchronisable avec ping-pong et throws.");
+         }, 0.35f, true, IDG_T ("Delay glitch : temps courts, ping-pong, filtre dans la boucle, feedback jusqu'à 110 %."));
 
     add ("reverb", "Reverb", "REVERB", FamSpace, {
             F ("size", "Taille", 0.0f, 1.0f, 0.6f, "%"),

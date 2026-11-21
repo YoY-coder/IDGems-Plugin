@@ -346,7 +346,8 @@ void IDGemsProcessor::processChunk (float* L, float* R, const float* scL, const 
     static const int osf[] { 1, 2, 4 };
     rc.osFactor = osf[juce::jlimit (0, 2, (int) rv (gi.destOS))];
     const auto& reg = registry();
-    const int throwDelay = reg.fxFirst[FxDelay] + 8, throwReverb = reg.fxFirst[FxReverb] + 6;
+    static const int throwDelay = reg.find (fxParamId (FxDelay, "throw"));
+    const int throwReverb = reg.fxFirst[FxReverb] + 6;
     for (int fx = 0; fx < NumFx; ++fx)
     {
         const bool mom = rackShared.momentary[fx].load (std::memory_order_relaxed);

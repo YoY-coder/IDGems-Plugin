@@ -118,6 +118,22 @@ int main (int argc, char** argv)
         }
     }
 
+    // 1a. Règles du random du delay (module 01) : jamais de ternaire, feedback <= 100 %
+    {
+        std::cout << "1a. Random du delay (ternaire interdit, feedback <= 100 %)..." << std::endl;
+        Harness h;
+        int dotted = 0;
+        for (uint32_t s = 1; s <= 600; ++s)
+        {
+            h.proc.random.perform (RandomEngine::Scope::Effect, FxDelay, s, "test", 1.0f);
+            const int feel = (int) std::lround (h.proc.getValue (fxParamId (FxDelay, "feel")));
+            check (feel != 2, "random du delay : ternaire choisi");
+            check (h.proc.getValue (fxParamId (FxDelay, "fb")) <= 1.0001f, "random du delay : feedback > 100 %");
+            dotted += feel == 1;
+        }
+        std::cout << "   " << dotted << " pointés sur 600" << std::endl;
+    }
+
     // 1b. Niveau de chaque effet (réglages par défaut) : détecte un module muet ou trop fort
     {
         std::cout << "1b. Niveau de sortie par effet (dB par rapport au signal sec)..." << std::endl;
@@ -341,7 +357,10 @@ int snapshotMain (const juce::String& path, int tab)
     std::unique_ptr<juce::AudioProcessorEditor> ed (h.proc.createEditor());
     ed->setSize (1280, 800);
     for (int i = 0; i < 10; ++i) { h.run (0.05); if (auto* e = dynamic_cast<IDGemsEditor*> (ed.get())) e->debugTick(); }
-    if (tab > 0)
+    // onglet 100 + n : onglet 0 avec l'effet n affiché (ex. 118 = Delay)
+    if (tab >= 100)
+        if (auto* e = dynamic_cast<IDGemsEditor*> (ed.get())) { h.proc.setValue (fxParamId (tab - 100, "on"), 1.0f); e->debugSelectEffect (tab - 100); }
+    if (tab > 0 && tab < 100)
         if (auto* e = dynamic_cast<IDGemsEditor*> (ed.get())) e->debugSelectTab (tab);
     for (int i = 0; i < 5; ++i) { h.run (0.05); if (auto* e = dynamic_cast<IDGemsEditor*> (ed.get())) e->debugTick(); }
     auto img = ed->createComponentSnapshot (ed->getLocalBounds(), true, 1.0f);

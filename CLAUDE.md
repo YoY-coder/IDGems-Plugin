@@ -41,7 +41,7 @@ Structure : DSP dans `Source/Effects/<Nom>.h` (classe autonome, sans MParam), pl
 (`--snapshot capture.png`, `--render boucle_140bpm.wav dossier/` pour rendre des WAV d'écoute ;
 le tempo est lu dans le nom du fichier). CI : un artefact par module (`IDGems-<Nom>-VST3-Windows`).
 
-### Module 01 — Delay (`GlitchDelay`, plugin « IDGems Delay ») — v1 livrée le 21/11/2026, À ÉCOUTER
+### Module 01 — Delay (`GlitchDelay`, plugin « IDGems Delay ») — VALIDÉ le 21/11/2026, RÉINTÉGRÉ au rack
 Cahier des charges de l'utilisateur :
 - temps courts : **jamais plus d'une noire (1/4)** en sync ; toutes les sous-divisions en dessous
   (1/128 → 1/4), droit / pointé / **ternaire au choix mais jamais choisi par le random** ;
@@ -60,11 +60,16 @@ coupe-bas, mix 50 %. Mesures : **ping-pong** (1er écho à DROITE, entrée somm�
 progressif des aigus à chaque rebond même sans coupe-haut (−0,15 dB à 3 kHz, −0,4 à 7 kHz, −0,7 à 12 kHz
 par rebond : ressemble à une interpolation linéaire / un shelf doux). IDGems Delay réglé pareil colle
 sur les médiums et les graves, mais il est plus brillant sur les répétitions (Hermite + coupe-haut ouvert).
-Rendus envoyés pour écoute (sec reconstruit en Python, pas son vrai sec). En attente : son avis,
-son vrai sec, la valeur exacte du coupe-bas d'Infiltrator. Piste : ajouter un réglage « Patine »
-(assombrissement doux par rebond) si les répétitions sonnent trop claires.
+Décision de l'utilisateur après écoute : **pas de potard « Patine »**, on assombrit avec le coupe-haut ;
+le côté de départ du ping-pong n'a aucune importance.
+Réintégration : `Source/Effects/Delay.h` enveloppe `GlitchDelay` (mix = 1, le rack fait le dry/wet)
++ mode Throw du rack ; paramètres du rack (ParamDefs) = time, sync, note, feel, fb, mode, offset,
+lowcut, highcut, throw. Random du rack : feel plafonné à « Pointé » (rmax 0,36), fb ≤ 100 %
+(rmax 1/1,1) ; test 1a de StabilityTests. Les anciens réglages de delay des projets (div, tone,
+pingpong, wow) ne sont plus reconnus. Capture du rack avec un effet affiché :
+`IDGemsTests --snapshot capture.png 118` (100 + numéro de l'effet).
 Outil : `IDGemsDelayTests --render-one source.wav sortie.wav sync=0 time=43.2 mode=1 feedback=0.9 ...`
-Reste à faire : retours d'écoute, puis réintégration dans le rack IDGems.
+Reste à faire : son essai dans Ableton (plugin solo et rack). Prochain module : à lui de choisir.
 
 ## Décisions et retours déjà actés
 - **Mix des effets à 100 % par défaut et jamais randomisé** (« un effet à 20 %, c'est dégueulasse,
